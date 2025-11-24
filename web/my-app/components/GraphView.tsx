@@ -4,6 +4,7 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import SpriteText from 'three-spritetext';
 import * as d3 from 'd3';
+import { useGraphControl } from '@/contexts/GraphControlContext';
 
 const ForceGraph3D = dynamic(() => import('react-force-graph-3d'), { 
   ssr: false,
@@ -28,33 +29,32 @@ interface GraphData {
 }
 
 export function GraphView({ data }: { data: GraphData }) {
-  const graphRef = useRef<any>();
+  const { graphRef } = useGraphControl();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   const handleNodeClick = useCallback((node: any) => {
-    const distance = 40;
+    const distance = 500;
     const distRatio = 1 + distance/Math.hypot(node.x, node.y, node.z);
 
     graphRef.current?.cameraPosition(
       { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
       node,
-      3000
+      1500
     );
   }, []);
 
   useEffect(() => {
     if (graphRef.current) {
-      // Physics: Orb Layout
-      // 1. Repel nodes locally so they don't overlap
-      graphRef.current.d3Force('charge').strength(-20);
-      
-      // 2. Keep links tight
-      graphRef.current.d3Force('link').distance(30);
+      // Physics: Compact Orb Layout
+      // 1. Reduce repulsion so nodes can be closer
+      graphRef.current.d3Force('charge').strength(-8);
 
-      // 3. Radial Force: Pull everything to a sphere surface
-      // Radius = 100 seems good for this amount of nodes
-      graphRef.current.d3Force('radial', d3.forceRadial(100).strength(0.8));
+      // 2. Shorter links for tighter connections
+      graphRef.current.d3Force('link').distance(15);
+
+      // 3. Radial Force: Smaller, tighter orb
+      graphRef.current.d3Force('radial', d3.forceRadial(60).strength(1.2));
     }
   }, []);
 
@@ -91,20 +91,18 @@ export function GraphView({ data }: { data: GraphData }) {
             const sprite = new SpriteText(node.name);
             sprite.color = node.color;
             sprite.textHeight = node.val ? node.val / 2 : 6;
-            sprite.fontFace = 'Geist Sans, Inter, sans-serif';
-            sprite.fontWeight = '500'; // Lighter weight
-            sprite.strokeWidth = 0; // No stroke for cleaner look, or very thin
-            sprite.backgroundColor = 'transparent'; // No background
+            sprite.fontFace = 'Space Grotesk, Space Mono, JetBrains Mono, monospace';
+            sprite.fontWeight = '700';
+            sprite.strokeWidth = 0.5;
+            sprite.strokeColor = 'rgba(0, 0, 0, 0.8)';
+            sprite.backgroundColor = 'transparent';
             return sprite;
           }}
           
           // Links
-          linkColor={() => 'rgba(255,255,255,0.1)'}
-          linkWidth={1}
-          linkDirectionalParticles={1} // Minimal particles
-          linkDirectionalParticleWidth={2}
-          linkDirectionalParticleSpeed={0.005}
-          linkDirectionalParticleColor={() => '#ffffff'}
+          linkColor={() => 'rgba(255,255,255,0.2)'}
+          linkWidth={1.5}
+          linkOpacity={0.4}
           
           // Interaction
           onNodeClick={handleNodeClick}
