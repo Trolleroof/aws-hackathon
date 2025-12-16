@@ -116,6 +116,10 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId }: G
 
       // Essential: Reheat to apply new forces
       graphRef.current.d3ReheatSimulation();
+
+      // Set initial camera position
+      graphRef.current.cameraPosition({ x: 0, y: 0, z: 250 }, { x: 0, y: 0, z: 0 }, 0);
+
       console.log('Graph forces applied successfully');
       return true;
     };
@@ -167,7 +171,7 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId }: G
 
   const handleResetView = () => {
     onNodeSelect?.(null);
-    graphRef.current?.cameraPosition?.({ x: 0, y: 0, z: 400 }, { x: 0, y: 0, z: 0 }, 900);
+    graphRef.current?.cameraPosition?.({ x: 0, y: 0, z: 250 }, { x: 0, y: 0, z: 0 }, 900);
   };
 
   const toggleAutoRotate = () => {
@@ -217,6 +221,17 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId }: G
     return () => cancelAnimationFrame(animationId);
   }, []);
 
+  // Clean up animated objects when nodes are removed
+  useEffect(() => {
+    const currentNodeIds = new Set(data.nodes.map(n => n.id));
+    animatedObjects.current.forEach((_, key) => {
+      const nodeId = key.split('-')[0];
+      if (!currentNodeIds.has(nodeId)) {
+        animatedObjects.current.delete(key);
+      }
+    });
+  }, [data.nodes]);
+
   // Get node color based on status
   const getNodeColor = (node: AgentNode): string => {
     if (node.status === 'idle') {
@@ -244,6 +259,9 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId }: G
           graphData={data}
           width={dimensions.width}
           height={dimensions.height}
+
+          // Force complete replacement of node objects instead of extending
+          nodeThreeObjectExtend={false}
 
           // Visuals
           backgroundColor="#05070d"
