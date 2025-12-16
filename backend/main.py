@@ -5,6 +5,8 @@ from typing import List, Optional
 from datetime import datetime
 from openai import OpenAI
 
+from tech_function import tech_node
+
 app = FastAPI(title="Mock API", version="1.0.0")
 
 # CORS middleware
@@ -68,18 +70,14 @@ def create_item(item: Item):
     return item
 
 @app.post("/api/tool")
-def generate_tech_node(Body: dict):
-    client = OpenAI(
-        base_url="https://api.nova.amazon.com/v1",
-        api_key="4acc1f5c-e79b-4dc2-a8c6-3c0636263b54",
-    )
-    response = client.chat.completions.create(
-        model="AGENT-5d8a50798ac64bf9aaad1a8ffbe62a74",
-        messages=[
-            {"role": "user", "content": f"Here's the user's idea: {Body.get('idea', 'No idea provided')}"}
-        ],
-    )
-    return {"tech_node": response.choices[0].message.content}
+async def generate_tech_node(Body: dict):
+    json = []
+
+    content = Body.get("idea", "No idea provided")
+    tech_node_result = tech_node(content)
+    json.append(tech_node_result)
+
+    return {}
 
 
 '''
