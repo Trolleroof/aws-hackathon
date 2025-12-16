@@ -5,7 +5,7 @@ import { GraphView } from '@/components/GraphView';
 import { VoiceSidebar } from '@/components/VoiceSidebar';
 import { getInitialGraphData } from '@/data/agentNodes';
 import { GraphControlProvider } from '@/contexts/GraphControlContext';
-import { AgentNode, IdeaGraphData, AgentType } from '@/types/ideaGraph';
+import type { AgentContent, AgentNode, IdeaGraphData, AgentType } from '@/types/ideaGraph';
 
 export default function DashboardPage() {
   const [graphData, setGraphData] = useState<IdeaGraphData>(getInitialGraphData());
@@ -46,7 +46,7 @@ export default function DashboardPage() {
               ? {
                   ...node,
                   status: 'complete' as const,
-                  content: getMockContent(agentType, transcript)
+                  content: getMockContent(agentType)
                 }
               : node
           )
@@ -63,7 +63,7 @@ export default function DashboardPage() {
           ? {
               ...node,
               status: 'complete' as const,
-              content: getMockContent('synthesis', transcript)
+              content: getMockContent('synthesis')
             }
           : node
       )
@@ -96,6 +96,20 @@ export default function DashboardPage() {
               <span className="text-slate-600">/</span>
               <span className="text-slate-400">5 AI agents</span>
             </div>
+            {selectedNode && (
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
+                <span className="text-slate-400">Selected:</span>
+                <span className="font-semibold text-white">{selectedNode.name}</span>
+                <span className={`ml-1 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
+                  selectedNode.status === 'complete' ? 'bg-emerald-500/20 text-emerald-300' :
+                  selectedNode.status === 'processing' ? 'bg-amber-500/20 text-amber-300' :
+                  selectedNode.status === 'error' ? 'bg-red-500/20 text-red-300' :
+                  'bg-slate-500/20 text-slate-300'
+                }`}>
+                  {selectedNode.status}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Bottom Status */}
@@ -108,8 +122,13 @@ export default function DashboardPage() {
           {/* Instructions */}
           {!isProcessing && graphData.nodes.every(n => n.status === 'idle') && (
             <div className="absolute bottom-7 right-7 max-w-xs pointer-events-none z-10">
-              <div className="text-xs text-slate-500 text-right">
-                Click the mic to brain dump your startup idea, then click Process to run it through 5 AI validation agents.
+              <div className="space-y-2 text-right text-xs text-slate-500">
+                <div>
+                  Click the mic to brain dump your startup idea, then click Process to run it through 5 AI validation agents.
+                </div>
+                <div className="text-slate-600">
+                  Tip: use the graph toolbar (top-right) to fit, reset, or auto-rotate.
+                </div>
               </div>
             </div>
           )}
@@ -129,7 +148,7 @@ export default function DashboardPage() {
 }
 
 // Mock content generator (placeholder until real AI integration)
-function getMockContent(agentType: AgentType, transcript: string): any {
+function getMockContent(agentType: AgentType): AgentContent | null {
   switch (agentType) {
     case 'problem':
       return {

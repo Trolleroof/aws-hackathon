@@ -58,19 +58,13 @@ export const INITIAL_AGENT_NODES: AgentNode[] = [
   },
 ];
 
-// Links connecting agents to center and to each other
+// Links connecting agents to center only (star topology)
 export const AGENT_LINKS: AgentLink[] = [
-  // All agents connect to center
   { source: 'center', target: 'problem' },
   { source: 'center', target: 'user' },
   { source: 'center', target: 'techstack' },
   { source: 'center', target: 'gaps' },
   { source: 'center', target: 'synthesis' },
-  // Inter-agent connections showing data flow
-  { source: 'problem', target: 'user' },
-  { source: 'user', target: 'gaps' },
-  { source: 'gaps', target: 'synthesis' },
-  { source: 'techstack', target: 'synthesis' },
 ];
 
 // Get initial graph data

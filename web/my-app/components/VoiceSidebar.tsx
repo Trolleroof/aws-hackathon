@@ -6,6 +6,32 @@ import { AGENT_DESCRIPTIONS } from '@/data/agentNodes';
 
 type ChatLine = { role: 'assistant' | 'user'; text: string; time: string };
 
+type SpeechRecognitionResultLike = {
+  isFinal: boolean;
+  0: { transcript: string };
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+  error?: string;
+};
+
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+const VISUALIZER_BARS = 14;
+const VISUALIZER_DELAYS = Array.from({ length: VISUALIZER_BARS }, (_, i) => -(i % 5) * 0.12);
+
 interface VoiceSidebarProps {
   selectedNode: AgentNode | null;
   onProcessIdea: (transcript: string) => void;
@@ -22,107 +48,156 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
     }
   ]);
   const [currentTranscript, setCurrentTranscript] = useState('');
-
-  // Audio visualizer state
-  const [barHeights, setBarHeights] = useState<number[]>(Array(14).fill(20));
-  const [barDelays, setBarDelays] = useState<number[]>(Array(14).fill(0));
+  const [draftIdea, setDraftIdea] = useState('');
 
   // Web Speech API ref (placeholder - will be replaced with Nova)
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const isRecordingRef = useRef(false);
 
-  // Set stable delays on client
   useEffect(() => {
-    setBarDelays(Array.from({ length: 14 }, (_, i) => -(i % 5) * 0.12));
-  }, []);
-
-  // Animate heights when recording
-  useEffect(() => {
-    if (!isRecording) {
-      setBarHeights(Array(14).fill(20));
-      return;
-    }
-    const interval = setInterval(() => {
-      setBarHeights(Array.from({ length: 14 }, () => 15 + Math.random() * 60));
-    }, 140);
-    return () => clearInterval(interval);
+    isRecordingRef.current = isRecording;
   }, [isRecording]);
 
   // Initialize Web Speech API (placeholder for Nova)
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
+    if (typeof window === 'undefined') return;
 
-      recognitionRef.current.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
+    const win = window as unknown as {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
 
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript + ' ';
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-
-        if (finalTranscript) {
-          setCurrentTranscript(prev => prev + finalTranscript);
-        }
-      };
-
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setIsRecording(false);
-      };
-
-      recognitionRef.current.onend = () => {
-        if (isRecording) {
-          // Restart if still supposed to be recording
-          recognitionRef.current?.start();
-        }
-      };
+    const SpeechRecognitionCtor = win.SpeechRecognition || win.webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) {
+      recognitionRef.current = null;
+      return;
     }
-  }, [isRecording]);
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event) => {
+      let finalTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const spokenText = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += spokenText + ' ';
+        }
+      }
+
+      if (finalTranscript) {
+        setCurrentTranscript(prev => prev + finalTranscript);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      setIsRecording(false);
+    };
+
+    recognition.onend = () => {
+      if (isRecordingRef.current) {
+        try {
+          recognition.start();
+        } catch {
+          // no-op
+        }
+      }
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      try {
+        recognition.onresult = null;
+        recognition.onerror = null;
+        recognition.onend = null;
+        recognition.stop();
+      } catch {
+        // no-op
+      }
+    };
+  }, []);
 
   const startRecording = () => {
+    if (!recognitionRef.current) {
+      const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      setTranscript(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: "Voice input isn't available in this browser. Type your idea below instead.",
+          time
+        }
+      ]);
+      return;
+    }
     setCurrentTranscript('');
     setIsRecording(true);
-    recognitionRef.current?.start();
+    try {
+      recognitionRef.current.start();
+    } catch {
+      // no-op
+    }
   };
 
   const stopRecording = () => {
     setIsRecording(false);
-    recognitionRef.current?.stop();
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      // no-op
+    }
 
     if (currentTranscript.trim()) {
       const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       setTranscript(prev => [...prev, { role: 'user', text: currentTranscript.trim(), time }]);
     }
+    setCurrentTranscript('');
+  };
+
+  const submitTypedIdea = () => {
+    const text = draftIdea.trim();
+    if (!text) return;
+    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    setTranscript(prev => [...prev, { role: 'user', text, time }]);
+    setDraftIdea('');
   };
 
   const handleProcessIdea = () => {
-    if (currentTranscript.trim() || transcript.some(t => t.role === 'user')) {
+    const pendingTyped = draftIdea.trim();
+    const pendingSpoken = currentTranscript.trim();
+
+    if (pendingTyped || pendingSpoken || transcript.some(t => t.role === 'user')) {
       const fullTranscript = transcript
         .filter(t => t.role === 'user')
         .map(t => t.text)
-        .join(' ') + ' ' + currentTranscript;
+        .concat([pendingTyped, pendingSpoken].filter(Boolean))
+        .join(' ');
 
       onProcessIdea(fullTranscript.trim());
 
       const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      setTranscript(prev => [...prev, {
-        role: 'assistant',
-        text: 'Processing your idea through all 5 agents...',
-        time
-      }]);
+      setTranscript(prev => [
+        ...prev,
+        ...(pendingTyped ? [{ role: 'user' as const, text: pendingTyped, time }] : []),
+        ...(pendingSpoken ? [{ role: 'user' as const, text: pendingSpoken, time }] : []),
+        {
+          role: 'assistant',
+          text: 'Processing your idea through all 5 agents...',
+          time
+        }
+      ]);
+      setDraftIdea('');
+      setCurrentTranscript('');
     }
   };
 
   // Get selected node info
   const nodeInfo = selectedNode ? AGENT_DESCRIPTIONS[selectedNode.type] : null;
+  const visualizerActive = isRecording || isProcessing;
 
   return (
     <div className="w-[380px] h-full flex flex-col border-l border-white/10 bg-[#05070d]/90 relative overflow-hidden">
@@ -150,6 +225,7 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
                   ? 'border-red-500/50 bg-red-500/20 hover:bg-red-500/30 text-red-400 scale-110'
                   : 'border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'
             }`}
+            title={isRecording ? 'Stop recording' : 'Start recording'}
           >
             {isRecording ? (
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -166,14 +242,15 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
 
       {/* Visualizer */}
       <div className="h-[140px] flex items-center justify-center gap-1.5 px-6 py-4 relative z-10 border-b border-white/5">
-        {barHeights.map((height, idx) => (
+        {Array.from({ length: VISUALIZER_BARS }).map((_, idx) => (
           <div
             key={idx}
-            className={`w-1 rounded-full ${isRecording ? 'bg-red-400/80' : isProcessing ? 'bg-amber-400/80' : 'bg-slate-700/50'}`}
+            className={`w-1 rounded-full ${
+              isRecording ? 'bg-red-400/80' : isProcessing ? 'bg-amber-400/80' : 'bg-slate-700/50'
+            } ${visualizerActive ? 'animate-music-bar' : ''}`}
             style={{
-              height: `${height}%`,
-              animationDelay: `${barDelays[idx]}s`,
-              transition: 'height 0.12s ease'
+              height: '20%',
+              animationDelay: `${VISUALIZER_DELAYS[idx]}s`
             }}
           />
         ))}
@@ -264,15 +341,48 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
             ? 'Recording your brain dump...'
             : isProcessing
               ? 'Analyzing your idea...'
-              : 'Click mic to start, then Process when done'}
+              : 'Click mic to start (or type below), then Process'}
+        </div>
+
+        {/* Typed fallback / quick edit */}
+        <div className="mb-4 flex items-stretch gap-2">
+          <textarea
+            value={draftIdea}
+            onChange={(e) => setDraftIdea(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                submitTypedIdea();
+              }
+            }}
+            placeholder="Type your startup idea…"
+            disabled={isRecording || isProcessing}
+            rows={2}
+            className="flex-1 resize-none rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-50"
+          />
+          <button
+            onClick={submitTypedIdea}
+            disabled={isRecording || isProcessing || !draftIdea.trim()}
+            className={`w-11 rounded-lg border transition-all ${
+              isRecording || isProcessing || !draftIdea.trim()
+                ? 'border-white/10 bg-white/5 text-slate-600 cursor-not-allowed'
+                : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+            }`}
+            title="Add to transcript (Ctrl/Cmd+Enter)"
+          >
+            <svg className="mx-auto h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 2L11 13" />
+              <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+            </svg>
+          </button>
         </div>
 
         {/* Process Button */}
         <button
           onClick={handleProcessIdea}
-          disabled={isRecording || isProcessing || (!currentTranscript.trim() && !transcript.some(t => t.role === 'user'))}
+          disabled={isRecording || isProcessing || (!draftIdea.trim() && !currentTranscript.trim() && !transcript.some(t => t.role === 'user'))}
           className={`w-full py-3 rounded-lg font-semibold text-sm transition-all ${
-            isRecording || isProcessing || (!currentTranscript.trim() && !transcript.some(t => t.role === 'user'))
+            isRecording || isProcessing || (!draftIdea.trim() && !currentTranscript.trim() && !transcript.some(t => t.role === 'user'))
               ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
               : 'bg-emerald-500 hover:bg-emerald-400 text-black'
           }`}
