@@ -1,16 +1,28 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from openai import OpenAI
 import logging
+import os
+import tempfile
+
+import assemblyai as aai
 
 from functions import tech_node, framing_node, target_user, problem_node, solution_node_2, restructure_json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Initialize AssemblyAI
+# Get API key from environment variable or use a default (you should set this in your environment)
+ASSEMBLYAI_API_KEY = "ad8c01f6fe4248b9bae4f2221415d160"
+if ASSEMBLYAI_API_KEY:
+    aai.settings.api_key = ASSEMBLYAI_API_KEY
+else:
+    logger.warning("ASSEMBLYAI_API_KEY not set. Transcription will not work.")
 
 app = FastAPI(title="Mock API", version="1.0.0")
 
@@ -73,6 +85,64 @@ def get_item(item_id: int):
 def create_item(item: Item):
     mock_items.append(item)
     return item
+
+@app.post("/api/transcribe")
+async def transcribe_audio(audio: UploadFile = File(...)):
+    """
+    Transcribe audio file using AssemblyAI.
+    Accepts audio files in various formats (wav, mp3, m4a, etc.)
+    """
+    if not ASSEMBLYAI_API_KEY:
+        raise HTTPException(status_code=500, detail="AssemblyAI API key not configured")
+    
+    try:
+        logger.info(f"Received audio file: {audio.filename}, content_type: {audio.content_type}")
+        
+        # Read audio file content
+        audio_content = await audio.read()
+        
+        # Create a temporary file to store the audio
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{audio.filename.split('.')[-1] if '.' in audio.filename else 'wav'}") as temp_file:
+            temp_file.write(audio_content)
+            temp_file_path = temp_file.name
+        
+        try:
+            # Initialize transcriber
+            transcriber = aai.Transcriber()
+            
+            # Transcribe the audio file
+            logger.info("Starting transcription...")
+            transcript = transcriber.transcribe(temp_file_path)
+            
+            # Check if transcription was successful
+            if transcript.status == aai.TranscriptStatus.error:
+                error_msg = transcript.error if hasattr(transcript, 'error') else "Unknown error"
+                logger.error(f"Transcription failed: {error_msg}")
+                raise HTTPException(status_code=500, detail=f"Transcription failed: {error_msg}")
+            
+            # Get the transcript text
+            transcript_text = transcript.text if transcript.text else ""
+            
+            logger.info(f"Transcription successful. Length: {len(transcript_text)} characters")
+            
+            return {
+                "transcript": transcript_text,
+                "status": "success",
+                "confidence": getattr(transcript, 'confidence', None)
+            }
+            
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(temp_file_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete temp file: {e}")
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error transcribing audio: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Transcription error: {str(e)}")
 
 @app.post("/api/tool")
 async def generate_tech_node(Body: dict):
