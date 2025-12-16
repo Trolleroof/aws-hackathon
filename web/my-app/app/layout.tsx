@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "N-Mapper | Learning Made Efficient",
+  title: "IdeaForge | AI-Powered Idea Validation",
   description:
-    "N-Mapper: a voice-first Canvas graph that makes courses navigable by nodes, URLs, and voice.",
+    "Brain dump your startup idea and get back a validated concept with problem statements, target users, tech stack, competitive gaps, and a founder-ready brief.",
 };
 
 export default function RootLayout({

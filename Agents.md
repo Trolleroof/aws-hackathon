@@ -1,1156 +1,397 @@
-# N-Mapper - Agent Workflows & Development Roles
+# CLAUDE.md — Project Context
 
-This document defines specialized workflows for different development agents/roles working on the N-Mapper project. Each agent has specific responsibilities, tools, and decision-making authority.
-
----
-
-## Agent Types
-
-### 1. Frontend Agent
-**Role**: UI/UX implementation, React/Next.js development
-
-### 2. Backend Agent
-**Role**: API integration, Helix DB schema, data transformation
-
-### 3. Graph Visualization Agent
-**Role**: 3D graph rendering, force simulation, interaction design
-
-### 4. Voice AI Agent
-**Role**: Speech recognition, NLP, intent processing
-
-### 5. DevOps Agent
-**Role**: Deployment, monitoring, performance optimization
-
-### 6. QA Agent
-**Role**: Testing, bug detection, user experience validation
+This file provides essential context for AI agents working on this project.
 
 ---
 
-## 1. Frontend Agent
+## 🚨 CRITICAL: Always Research Latest Versions
 
-### Responsibilities
-- Implement UI components (React/Next.js)
-- Style with Tailwind CSS v4
-- Ensure responsive design
-- Maintain design system consistency
-- Handle routing and navigation
+**Before implementing ANY feature or installing ANY package:**
 
-### Key Files
+1. **Search for the LATEST version** of frameworks, libraries, and tools
+2. **NEVER assume older versions** — always verify current releases
+3. **Check breaking changes** between versions
+4. **Use official documentation** for the most recent stable release
+5. **Use Context7 to fetch official documentation** for accurate, up-to-date information
+
+**Research pattern:**
 ```
-web/my-app/app/
-├── page.tsx              # Landing page
-├── layout.tsx            # Root layout
-├── globals.css           # Tailwind + custom styles
-└── app/
-    └── page.tsx          # Dashboard
+"[package-name] latest version 2025"
+"[framework] [version] migration guide"
+"[tool] latest features"
 ```
 
-### Workflow
-
-#### Creating a New Page
-1. **Create Route File**:
-   ```bash
-   cd web/my-app/app
-   mkdir <route-name>
-   touch <route-name>/page.tsx
-   ```
-
-2. **Implement Component**:
-   ```tsx
-   export default function NewPage() {
-     return (
-       <main className="min-h-screen bg-[#05070d] text-white">
-         {/* Content */}
-       </main>
-     );
-   }
-   ```
-
-3. **Apply Design System**:
-   - Background: `bg-[#05070d]`
-   - Cards: `rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl`
-   - Text: `text-slate-300`
-   - Accents: `text-emerald-400`
-
-4. **Test Responsiveness**:
-   ```bash
-   npm run dev
-   # Test at: sm (640px), md (768px), lg (1024px), xl (1280px)
-   ```
-
-#### Adding a New Component
-1. **Create Component File** (if reusable):
-   ```bash
-   mkdir -p web/my-app/components
-   touch web/my-app/components/GraphView.tsx
-   ```
-
-2. **Component Structure**:
-   ```tsx
-   'use client';
-
-   import { useState, useEffect } from 'react';
-
-   interface GraphViewProps {
-     data: GraphData;
-   }
-
-   export function GraphView({ data }: GraphViewProps) {
-     // Component logic
-     return <div>{/* JSX */}</div>;
-   }
-   ```
-
-3. **Export from Index** (optional):
-   ```ts
-   // components/index.ts
-   export { GraphView } from './GraphView';
-   ```
-
-#### Decision Authority
-- ✅ Can modify: UI components, styling, animations
-- ✅ Can create: New pages, components
-- ⚠️ Coordinate with Backend Agent: API calls, data fetching
-- ⚠️ Coordinate with Graph Agent: Graph component integration
-- ❌ Cannot modify: Helix DB schema, backend logic
-
-### Common Tasks
-
-**Task**: Add a new navigation link
-```tsx
-// In layout.tsx or navigation component
-<Link
-  href="/new-route"
-  className="rounded-xl border border-white/14 bg-white/6 px-5 py-2"
->
-  New Page
-</Link>
+**Use Context7 for documentation:**
+```
+@context7 [framework-name] [specific-topic]
 ```
 
-**Task**: Create a loading state
-```tsx
-'use client';
+Examples:
+- `@context7 next.js app router`
+- `@context7 framer-motion scroll animations`
+- `@context7 tailwind css v4 configuration`
+- `@context7 react-three-fiber getting started`
 
-import { useState, useEffect } from 'react';
-
-export default function Page() {
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Fetch data
-    fetchData().finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin h-8 w-8 border-2 border-emerald-400 border-t-transparent rounded-full" />
-    </div>;
-  }
-
-  return <main>{/* Content */}</main>;
-}
-```
+**If you find a NEWER version than what's in this file:**
+- Use the newer version (unless explicitly pinned)
+- Check migration guides via Context7
+- Update patterns to match latest best practices
 
 ---
 
-## 2. Backend Agent
+## Project Overview
 
-### Responsibilities
-- Design and implement Helix DB schema
-- Write database queries
-- Integrate Canvas API
-- Transform data for frontend consumption
-- Handle API routing (Next.js API routes)
-
-### Key Files
-```
-helix/
-├── db/
-│   ├── schema.hx         # Node/edge definitions
-│   └── queries.hx        # Database queries
-└── helix.toml            # Configuration
-
-web/my-app/app/api/       # Next.js API routes (to be created)
-```
-
-### Workflow
-
-#### Expanding Helix DB Schema
-
-1. **Define New Node Type** (`helix/db/schema.hx`):
-   ```hx
-   N::Course {
-     INDEX id: String,
-     name: String,
-     code: String,
-     color: String,
-     term: String,
-     created_at: Date DEFAULT NOW
-   }
-
-   N::Module {
-     INDEX id: String,
-     name: String,
-     position: Int,
-     unlock_at: Date,
-     created_at: Date DEFAULT NOW
-   }
-   ```
-
-2. **Define Relationships**:
-   ```hx
-   R::CONTAINS {
-     from: Course,
-     to: Module
-   }
-
-   R::ENROLLED_IN {
-     from: User,
-     to: Course,
-     role: String  // "student" | "teacher" | "ta"
-   }
-   ```
-
-3. **Create Queries** (`helix/db/queries.hx`):
-   ```hx
-   // Create course
-   QUERY createCourse(id: String, name: String, code: String, color: String) =>
-     course <- AddN<Course>({
-       id: id,
-       name: name,
-       code: code,
-       color: color
-     })
-     RETURN course
-
-   // Get course with modules
-   QUERY getCourseWithModules(courseId: String) =>
-     course <- N<Course>({id: courseId})
-     modules <- N<Module>() -[R<CONTAINS>]- course
-     RETURN {course, modules}
-   ```
-
-4. **Test Query**:
-   ```bash
-   cd helix
-   helix query createCourse --args '{"id": "math18", "name": "Math 18", "code": "MATH 18", "color": "#ef4444"}'
-   ```
-
-#### Creating a Next.js API Route
-
-1. **Create Route Handler** (`web/my-app/app/api/courses/route.ts`):
-   ```ts
-   import { NextResponse } from 'next/server';
-
-   export async function GET(request: Request) {
-     try {
-       // Fetch from Helix DB
-       const courses = await fetchFromHelix('getAllCourses');
-       return NextResponse.json(courses);
-     } catch (error) {
-       return NextResponse.json(
-         { error: 'Failed to fetch courses' },
-         { status: 500 }
-       );
-     }
-   }
-
-   export async function POST(request: Request) {
-     const body = await request.json();
-     // Create course in Helix DB
-     const course = await createInHelix('createCourse', body);
-     return NextResponse.json(course);
-   }
-   ```
-
-2. **Create Helix Client** (`web/my-app/lib/helix.ts`):
-   ```ts
-   const HELIX_URL = process.env.HELIX_URL || 'http://localhost:6969';
-
-   export async function fetchFromHelix(queryName: string, args = {}) {
-     const response = await fetch(`${HELIX_URL}/query/${queryName}`, {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify(args)
-     });
-     return response.json();
-   }
-   ```
-
-#### Canvas API Integration
-
-1. **Set Up Canvas Client** (`web/my-app/lib/canvas.ts`):
-   ```ts
-   const CANVAS_URL = process.env.CANVAS_URL;
-   const CANVAS_TOKEN = process.env.CANVAS_ACCESS_TOKEN;
-
-   export async function fetchCanvasCourses() {
-     const response = await fetch(`${CANVAS_URL}/api/v1/courses`, {
-       headers: {
-         'Authorization': `Bearer ${CANVAS_TOKEN}`
-       }
-     });
-     return response.json();
-   }
-
-   export async function fetchCourseModules(courseId: string) {
-     const response = await fetch(
-       `${CANVAS_URL}/api/v1/courses/${courseId}/modules`,
-       { headers: { 'Authorization': `Bearer ${CANVAS_TOKEN}` } }
-     );
-     return response.json();
-   }
-   ```
-
-2. **Sync Canvas → Helix** (`web/my-app/lib/sync.ts`):
-   ```ts
-   import { fetchCanvasCourses } from './canvas';
-   import { createInHelix } from './helix';
-
-   export async function syncCoursesToHelix() {
-     const canvasCourses = await fetchCanvasCourses();
-
-     for (const course of canvasCourses) {
-       await createInHelix('createCourse', {
-         id: course.id.toString(),
-         name: course.name,
-         code: course.course_code,
-         color: generateCourseColor(course.id)
-       });
-     }
-   }
-
-   function generateCourseColor(id: number): string {
-     // Deterministic color generation
-     const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
-     return colors[id % colors.length];
-   }
-   ```
-
-3. **Create Sync Endpoint** (`web/my-app/app/api/sync/route.ts`):
-   ```ts
-   import { NextResponse } from 'next/server';
-   import { syncCoursesToHelix } from '@/lib/sync';
-
-   export async function POST() {
-     try {
-       await syncCoursesToHelix();
-       return NextResponse.json({ success: true });
-     } catch (error) {
-       return NextResponse.json(
-         { error: 'Sync failed' },
-         { status: 500 }
-       );
-     }
-   }
-   ```
-
-### Decision Authority
-- ✅ Can modify: Helix DB schema, queries, API routes
-- ✅ Can create: New endpoints, data models
-- ⚠️ Coordinate with Frontend Agent: API contracts, response shapes
-- ⚠️ Coordinate with Graph Agent: Graph data format
-- ❌ Cannot modify: UI components, styling
-
-### Common Tasks
-
-**Task**: Add a new field to existing node
-```hx
-// Before
-N::Course {
-  INDEX id: String,
-  name: String
-}
-
-// After
-N::Course {
-  INDEX id: String,
-  name: String,
-  description: String  // New field
-}
-```
-
-**Task**: Create a complex query with filtering
-```hx
-QUERY getAssignmentsDueThisWeek(userId: String) =>
-  user <- N<User>({id: userId})
-  courses <- N<Course>() -[R<ENROLLED_IN>]- user
-  assignments <- N<Assignment>() -[R<INCLUDES>]- N<Module>() -[R<CONTAINS>]- courses
-  filtered <- assignments WHERE due_at >= TODAY AND due_at <= TODAY + 7
-  RETURN filtered
-```
+**Name**: [Project Name]  
+**Description**: [Brief 1-2 sentence description]  
+**Type**: [Web App / CLI Tool / Library / etc.]
 
 ---
 
-## 3. Graph Visualization Agent
+## Tech Stack
 
-### Responsibilities
-- Implement 3D graph rendering with react-force-graph-3d
-- Configure force simulation physics
-- Handle node/link styling
-- Implement camera controls and animations
-- Optimize performance for large graphs
+### Core
+- **Next.js**: 16.0.5 (App Router, Turbopack default)
+- **React**: 19.2.0
+- **TypeScript**: 5.x
+- **Node.js**: 20+ recommended
 
-### Key Files
+### Styling
+- **Tailwind CSS**: 4.x (CSS-first configuration)
+- **UI Components**: shadcn/ui, Radix UI
+
+### Linting & Formatting
+- **ESLint**: 9.x
+- **Prettier**: Latest
+
+---
+
+## 🎨 State-of-the-Art UI & Animation (ALWAYS USE)
+
+**These libraries should be your default choice for UI/UX:**
+
+### Animation & Motion
+- **Framer Motion** — Use for ALL animations, page transitions, gestures
+  - Prefer `motion.*` components over plain HTML
+  - Use `AnimatePresence` for exit animations
+  - Leverage `useScroll`, `useTransform` for scroll effects
+
+### Design Inspiration & Patterns
+- **Mobbin** — Reference for mobile/web UI patterns
+  - Study before building new features
+  - Use for inspiration on interactions and flows
+
+### Component Patterns
+- **React Bits** — Modern React patterns and best practices
+  - Use recommended patterns for state management
+  - Follow component composition guidelines
+
+### 3D & WebGL
+- **Three.js** (via @react-three/fiber + @react-three/drei)
+  - Use for 3D graphics, WebGL effects
+  - Prefer R3F's declarative API over vanilla Three.js
+  - Use `drei` helpers for common 3D patterns
+
+### Additional State-of-the-Art Tools
+- **GSAP** — For complex timeline animations
+- **Lottie** (lottie-react) — For designer-created animations
+- **Rive** — For interactive animations
+- **React Spring** — For physics-based animations (alternative to Framer Motion)
+- **Auto-Animate** — For automatic list/layout animations
+
+**Installation example:**
+```bash
+npm install framer-motion @react-three/fiber @react-three/drei three
+npm install gsap lottie-react @formkit/auto-animate
 ```
-web/my-app/components/
-├── GraphView.tsx         # Main graph component
-├── GraphControls.tsx     # Filter/settings panel
-└── NodeDetail.tsx        # Node info sidebar
 
-web/my-app/lib/
-└── graph-utils.ts        # Data transformation utilities
-```
-
-### Workflow
-
-#### Setting Up react-force-graph-3d
-
-1. **Install Dependencies**:
-   ```bash
-   cd web/my-app
-   npm install react-force-graph-3d three @types/three
-   ```
-
-2. **Create Graph Component** (`components/GraphView.tsx`):
-   ```tsx
-   'use client';
-
-   import { useRef, useState, useEffect } from 'react';
-   import ForceGraph3D from 'react-force-graph-3d';
-   import type { ForceGraphMethods } from 'react-force-graph-3d';
-
-   interface GraphData {
-     nodes: Array<{
-       id: string;
-       name: string;
-       type: 'course' | 'module' | 'assignment' | 'page';
-       color: string;
-       val?: number;
-     }>;
-     links: Array<{
-       source: string;
-       target: string;
-     }>;
-   }
-
-   export function GraphView({ data }: { data: GraphData }) {
-     const graphRef = useRef<ForceGraphMethods>();
-
-     return (
-       <ForceGraph3D
-         ref={graphRef}
-         graphData={data}
-         nodeLabel="name"
-         nodeColor="color"
-         nodeVal={(node: any) => {
-           // Size based on type
-           if (node.type === 'course') return 15;
-           if (node.type === 'module') return 10;
-           return 5;
-         }}
-         linkWidth={2}
-         linkColor={() => 'rgba(255,255,255,0.2)'}
-         backgroundColor="#05070d"
-         onNodeClick={(node) => {
-           // Navigate to node detail
-           console.log('Clicked:', node);
-         }}
-       />
-     );
-   }
-   ```
-
-3. **Transform Helix Data to Graph Format** (`lib/graph-utils.ts`):
-   ```ts
-   export function transformToGraphData(helixData: any): GraphData {
-     const nodes = [];
-     const links = [];
-
-     // Add course nodes
-     for (const course of helixData.courses) {
-       nodes.push({
-         id: course.id,
-         name: course.name,
-         type: 'course',
-         color: course.color,
-       });
-
-       // Add modules
-       for (const module of course.modules) {
-         nodes.push({
-           id: module.id,
-           name: module.name,
-           type: 'module',
-           color: course.color, // Same color as parent course
-         });
-
-         // Link course -> module
-         links.push({
-           source: course.id,
-           target: module.id,
-         });
-       }
-     }
-
-     return { nodes, links };
-   }
-   ```
-
-#### Implementing Advanced Features
-
-**Feature**: Color-Coded Sub-Graphs (Per Course)
+**Default animation pattern:**
 ```tsx
-function assignCourseColors(courses: Course[]): Map<string, string> {
-  const colors = [
-    '#ef4444', // red - Math 18
-    '#3b82f6', // blue - Math 20C
-    '#10b981', // green - CSE 101
-    '#f59e0b', // orange
-    '#8b5cf6', // purple
-  ];
+import { motion } from 'framer-motion';
 
-  const colorMap = new Map();
-  courses.forEach((course, idx) => {
-    colorMap.set(course.id, colors[idx % colors.length]);
-  });
-
-  return colorMap;
-}
-```
-
-**Feature**: Node Click Navigation
-```tsx
-const router = useRouter();
-
-onNodeClick={(node) => {
-  // Zoom to node
-  graphRef.current?.centerAt(node.x, node.y, node.z, 1000);
-
-  // Navigate to detail page
-  router.push(`/node/${node.id}`);
-}}
-```
-
-**Feature**: Camera Presets
-```tsx
-function cameraPresets(graphRef: RefObject<ForceGraphMethods>) {
-  return {
-    topView: () => {
-      graphRef.current?.cameraPosition(
-        { x: 0, y: 500, z: 0 }, // Position
-        { x: 0, y: 0, z: 0 },   // Look at
-        1000                     // Duration (ms)
-      );
-    },
-
-    orbitalView: () => {
-      graphRef.current?.cameraPosition(
-        { x: 300, y: 300, z: 300 },
-        { x: 0, y: 0, z: 0 },
-        1000
-      );
-    },
-  };
-}
-```
-
-**Feature**: Performance Optimization
-```tsx
-<ForceGraph3D
-  // Reduce physics complexity
-  cooldownTicks={100}
-  warmupTicks={0}
-
-  // Limit rendering
-  nodeThreeObjectExtend={false}
-
-  // Use canvas for links (faster)
-  linkDirectionalParticles={0}
-
-  // Throttle renders
-  enableNodeDrag={false} // Disable for performance
-/>
-```
-
-#### Implementing Filter Controls
-
-**Component**: GraphControls.tsx
-```tsx
-export function GraphControls({ onFilterChange }: { onFilterChange: (filters: Filters) => void }) {
-  const [showCourses, setShowCourses] = useState(true);
-  const [showModules, setShowModules] = useState(true);
-  const [showAssignments, setShowAssignments] = useState(true);
-
-  useEffect(() => {
-    onFilterChange({
-      courses: showCourses,
-      modules: showModules,
-      assignments: showAssignments,
-    });
-  }, [showCourses, showModules, showAssignments]);
-
+export function Component() {
   return (
-    <div className="absolute top-4 right-4 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-      <h3 className="text-sm font-semibold text-white mb-3">Filters</h3>
-      <div className="space-y-2">
-        <label className="flex items-center gap-2 text-sm text-slate-300">
-          <input type="checkbox" checked={showCourses} onChange={(e) => setShowCourses(e.target.checked)} />
-          Courses
-        </label>
-        <label className="flex items-center gap-2 text-sm text-slate-300">
-          <input type="checkbox" checked={showModules} onChange={(e) => setShowModules(e.target.checked)} />
-          Modules
-        </label>
-        <label className="flex items-center gap-2 text-sm text-slate-300">
-          <input type="checkbox" checked={showAssignments} onChange={(e) => setShowAssignments(e.target.checked)} />
-          Assignments
-        </label>
-      </div>
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
+    >
+      Content
+    </motion.div>
   );
 }
 ```
 
-### Decision Authority
-- ✅ Can modify: Graph rendering, camera controls, visual effects
-- ✅ Can create: Graph components, utilities
-- ⚠️ Coordinate with Frontend Agent: Component integration
-- ⚠️ Coordinate with Backend Agent: Data format requirements
-- ❌ Cannot modify: Data fetching logic, API routes
+---
 
-### Common Tasks
+## Critical: Tailwind CSS v4
 
-**Task**: Highlight specific nodes
-```tsx
-const [highlightNodes, setHighlightNodes] = useState(new Set());
+**Tailwind v4 uses CSS-first configuration. There is NO `tailwind.config.js` or `tailwind.config.ts` file.**
 
-<ForceGraph3D
-  nodeColor={(node: any) =>
-    highlightNodes.has(node.id) ? '#10b981' : node.color
-  }
-/>
+### Configuration lives in `app/globals.css`:
+
+```css
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --color-primary: oklch(0.70 0.17 162);
+  --shadow-glow: 0 20px 50px oklch(0.70 0.17 162 / 0.3);
+}
+
+@utility glass {
+  background: oklch(1 0 0 / 0.05);
+  backdrop-filter: blur(20px);
+}
 ```
 
-**Task**: Add directional arrows
+### Tailwind v4 syntax rules:
+
+| Do this (v4) | Not this (v3) |
+|--------------|---------------|
+| `@import "tailwindcss"` | `@tailwind base; @tailwind components; @tailwind utilities;` |
+| `@theme { --color-brand: #fff; }` | `tailwind.config.js → theme.extend.colors` |
+| `@utility my-util { ... }` | `@layer utilities { .my-util { ... } }` |
+| `bg-(--my-var)` | `bg-[var(--my-var)]` |
+| `shadow-xs` | `shadow-sm` |
+| `shadow-sm` | `shadow` |
+| `rounded-xs` | `rounded-sm` |
+| `rounded-sm` | `rounded` |
+| `ring-3` | `ring` |
+
+### PostCSS config (`postcss.config.mjs`):
+
+```js
+export default {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+```
+
+**Important:** `postcss-import` and `autoprefixer` are NOT needed — Tailwind v4 handles them.
+
+---
+
+## Critical: Next.js 16
+
+### Removed features:
+- `next lint` command removed — use `eslint` directly
+- `middleware.ts` deprecated — use `proxy.ts` instead
+
+### Default behaviors:
+- Turbopack is the default bundler (no flag needed)
+- App Router is standard
+- React 19.2 features available (View Transitions, useEffectEvent, Activity)
+
+### Async params required in pages:
+
 ```tsx
-<ForceGraph3D
-  linkDirectionalArrowLength={3}
-  linkDirectionalArrowRelPos={1}
-  linkDirectionalArrowColor={() => 'rgba(255,255,255,0.6)'}
-/>
+// Correct (Next.js 16)
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  return <div>{slug}</div>;
+}
+
+// Wrong (Next.js 15 style)
+export default function Page({ params }: { params: { slug: string } }) {
+  return <div>{params.slug}</div>;
+}
 ```
 
 ---
 
-## 4. Voice AI Agent
+## tsconfig.json (Next.js 16 default)
 
-### Responsibilities
-- Implement speech recognition
-- Process natural language intents
-- Execute graph navigation commands
-- Provide voice feedback (TTS)
-
-### Key Files
+```json
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    "paths": { "@/*": ["./*"] }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
 ```
-web/my-app/lib/
-├── voice/
-│   ├── recognition.ts    # Speech-to-text
-│   ├── nlp.ts            # Intent parsing
-│   └── tts.ts            # Text-to-speech
 
-web/my-app/components/
-└── VoiceControl.tsx      # UI component
+**Key settings:**
+- `"jsx": "react-jsx"` — New JSX transform, no React import needed
+- `"moduleResolution": "bundler"` — Modern bundler resolution
+- Includes `.next/dev/types/**/*.ts` and `**/*.mts`
+
+---
+
+## Common Gotchas
+
+1. **No tailwind.config.js** — All config in `globals.css` via `@theme`
+2. **Utility renames** — `shadow-sm` is now `shadow-xs`, `shadow` is now `shadow-sm`
+3. **CSS variable syntax** — Use `bg-(--var)` not `bg-[var(--var)]`
+4. **Async params** — Page params are Promises in Next.js 16
+5. **No next lint** — Use `eslint` command directly
+6. **React imports** — Not needed for JSX (`jsx: "react-jsx"`)
+
+---
+
+## Project Structure
+
+```
+app/
+├── layout.tsx      # Root layout with fonts
+├── page.tsx        # Home page
+├── globals.css     # Tailwind v4 config + styles
+└── [routes]/       # App Router pages
+
+components/         # React components
+lib/                # Utilities and helpers
+public/             # Static assets
 ```
 
-### Workflow
+---
 
-#### Setting Up Web Speech API
+## Commands
 
-**Component**: VoiceControl.tsx
-```tsx
+```bash
+npm run dev      # Start dev server (Turbopack)
+npm run build    # Production build
+npm run start    # Start production server
+npm run lint     # Run ESLint (not next lint)
+```
+
+---
+
+## Package Installation
+
+When adding packages, use exact commands:
+
+```bash
+npm install <package>        # Dependencies
+npm install -D <package>     # Dev dependencies
+```
+
+**Do NOT modify existing package versions unless explicitly asked.**
+
+---
+
+## Code Patterns & Conventions
+
+### File Naming
+- Components: `PascalCase.tsx`
+- Utilities: `camelCase.ts`
+- Types: `types.ts` or `*.types.ts`
+- Route files: `page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`
+
+### Import Order
+```typescript
+// 1. React (if needed for hooks/types)
+import { useState } from 'react';
+
+// 2. Next.js
+import Image from 'next/image';
+import Link from 'next/link';
+
+// 3. External packages
+import { motion } from 'framer-motion';
+
+// 4. Internal modules
+import { cn } from '@/lib/utils';
+
+// 5. Components
+import { Button } from '@/components/ui/button';
+
+// 6. Types
+import type { Props } from './types';
+
+// 7. Styles (if any separate CSS modules)
+import styles from './styles.module.css';
+```
+
+### Component Structure
+```typescript
+// Server Component (default in Next.js 16)
+export default function Component() {
+  return <div>Server-rendered content</div>;
+}
+
+// Client Component (when needed)
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
-interface VoiceControlProps {
-  onCommand: (command: string, intent: Intent) => void;
-}
-
-export function VoiceControl({ onCommand }: VoiceControlProps) {
-  const [listening, setListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [recognition, setRecognition] = useState<any>(null);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition;
-      const recognizer = new SpeechRecognition();
-
-      recognizer.continuous = true;
-      recognizer.interimResults = true;
-
-      recognizer.onresult = (event: any) => {
-        const current = event.resultIndex;
-        const transcript = event.results[current][0].transcript;
-        setTranscript(transcript);
-
-        if (event.results[current].isFinal) {
-          processCommand(transcript);
-        }
-      };
-
-      setRecognition(recognizer);
-    }
-  }, []);
-
-  const processCommand = async (text: string) => {
-    const intent = await parseIntent(text);
-    onCommand(text, intent);
-  };
-
-  const toggleListening = () => {
-    if (listening) {
-      recognition?.stop();
-    } else {
-      recognition?.start();
-    }
-    setListening(!listening);
-  };
-
-  return (
-    <div className="fixed bottom-8 right-8 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={toggleListening}
-          className={`h-12 w-12 rounded-full ${
-            listening ? 'bg-red-500' : 'bg-emerald-500'
-          } flex items-center justify-center`}
-        >
-          {listening ? '🎤' : '🔇'}
-        </button>
-        <div className="text-sm text-slate-300">
-          {listening ? transcript || 'Listening...' : 'Click to speak'}
-        </div>
-      </div>
-    </div>
-  );
+export function InteractiveComponent() {
+  const [state, setState] = useState(false);
+  return <button onClick={() => setState(!state)}>Toggle</button>;
 }
 ```
 
-#### Implementing Intent Parsing
-
-**Library**: nlp.ts
-```ts
-export interface Intent {
-  action: 'navigate' | 'filter' | 'search' | 'summarize';
-  target?: string;
-  filters?: Record<string, any>;
+### Async Server Components
+```typescript
+// Fetch data directly in Server Components
+export default async function Page() {
+  const data = await fetch('https://api.example.com/data');
+  const json = await data.json();
+  
+  return <div>{json.title}</div>;
 }
-
-export async function parseIntent(text: string): Promise<Intent> {
-  const lowerText = text.toLowerCase();
-
-  // Navigate patterns
-  if (lowerText.match(/show|go to|navigate to/)) {
-    const courseMatch = lowerText.match(/math \d+|cse \d+/);
-    if (courseMatch) {
-      return {
-        action: 'navigate',
-        target: courseMatch[0].replace(' ', ''),
-      };
-    }
-
-    const moduleMatch = lowerText.match(/module \d+/);
-    if (moduleMatch) {
-      return {
-        action: 'navigate',
-        target: moduleMatch[0],
-      };
-    }
-  }
-
-  // Filter patterns
-  if (lowerText.match(/due|upcoming|this week/)) {
-    return {
-      action: 'filter',
-      filters: {
-        type: 'assignment',
-        dueDate: 'this_week',
-      },
-    };
-  }
-
-  // Search patterns
-  if (lowerText.match(/find|search/)) {
-    const query = lowerText.replace(/find|search/, '').trim();
-    return {
-      action: 'search',
-      target: query,
-    };
-  }
-
-  // Summarize patterns
-  if (lowerText.match(/summarize|what is|tell me about/)) {
-    return {
-      action: 'summarize',
-      target: lowerText.replace(/summarize|what is|tell me about/, '').trim(),
-    };
-  }
-
-  // Default
-  return { action: 'search', target: text };
-}
-```
-
-#### Executing Commands
-
-**Hook**: useVoiceCommands.ts
-```ts
-import { useRouter } from 'next/navigation';
-import { RefObject } from 'react';
-import type { ForceGraphMethods } from 'react-force-graph-3d';
-
-export function useVoiceCommands(
-  graphRef: RefObject<ForceGraphMethods>,
-  graphData: GraphData
-) {
-  const router = useRouter();
-
-  const executeCommand = (command: string, intent: Intent) => {
-    switch (intent.action) {
-      case 'navigate':
-        handleNavigate(intent.target);
-        break;
-
-      case 'filter':
-        handleFilter(intent.filters);
-        break;
-
-      case 'search':
-        handleSearch(intent.target);
-        break;
-
-      case 'summarize':
-        handleSummarize(intent.target);
-        break;
-    }
-  };
-
-  const handleNavigate = (target: string) => {
-    // Find node
-    const node = graphData.nodes.find(n =>
-      n.name.toLowerCase().includes(target.toLowerCase())
-    );
-
-    if (node) {
-      // Zoom to node
-      graphRef.current?.centerAt(node.x, node.y, node.z, 1000);
-
-      // Announce
-      speak(`Navigating to ${node.name}`);
-    } else {
-      speak(`Could not find ${target}`);
-    }
-  };
-
-  const handleFilter = (filters: Record<string, any>) => {
-    // Apply filters to graph
-    // (Implementation depends on state management)
-    speak(`Filtering by ${JSON.stringify(filters)}`);
-  };
-
-  const handleSearch = (query: string) => {
-    const matches = graphData.nodes.filter(n =>
-      n.name.toLowerCase().includes(query.toLowerCase())
-    );
-
-    if (matches.length > 0) {
-      speak(`Found ${matches.length} results for ${query}`);
-      // Highlight matches
-    } else {
-      speak(`No results for ${query}`);
-    }
-  };
-
-  const handleSummarize = async (target: string) => {
-    // Fetch node details from API
-    const details = await fetch(`/api/nodes/${target}`).then(r => r.json());
-    speak(details.summary || 'No summary available');
-  };
-
-  return { executeCommand };
-}
-
-function speak(text: string) {
-  const utterance = new SpeechSynthesisUtterance(text);
-  window.speechSynthesis.speak(utterance);
-}
-```
-
-### Decision Authority
-- ✅ Can modify: Voice recognition, intent parsing, TTS
-- ✅ Can create: Voice commands, NLP patterns
-- ⚠️ Coordinate with Graph Agent: Navigation APIs
-- ⚠️ Coordinate with Backend Agent: Node lookup APIs
-- ❌ Cannot modify: Graph rendering logic
-
----
-
-## 5. DevOps Agent
-
-### Responsibilities
-- Deploy to production
-- Set up CI/CD pipelines
-- Monitor performance
-- Configure environment variables
-- Manage Helix DB deployment
-
-### Key Files
-```
-.github/workflows/
-├── deploy.yml            # GitHub Actions
-└── test.yml              # CI tests
-
-vercel.json               # Vercel config
-Dockerfile                # Container config (if needed)
-.env.example              # Environment variables template
-```
-
-### Workflow
-
-#### Setting Up Environment Variables
-
-**File**: .env.example
-```bash
-# Canvas API
-CANVAS_URL=https://canvas.ucsd.edu
-CANVAS_ACCESS_TOKEN=your_token_here
-
-# Helix DB
-HELIX_URL=http://localhost:6969
-
-# Next.js
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-**Usage**:
-```bash
-cp .env.example .env.local
-# Edit .env.local with actual values
-```
-
-#### Deploying to Vercel
-
-1. **Install Vercel CLI**:
-   ```bash
-   npm install -g vercel
-   ```
-
-2. **Configure** (`vercel.json`):
-   ```json
-   {
-     "buildCommand": "cd web/my-app && npm run build",
-     "outputDirectory": "web/my-app/.next",
-     "framework": "nextjs",
-     "env": {
-       "CANVAS_URL": "@canvas-url",
-       "CANVAS_ACCESS_TOKEN": "@canvas-token",
-       "HELIX_URL": "@helix-url"
-     }
-   }
-   ```
-
-3. **Deploy**:
-   ```bash
-   cd web/my-app
-   vercel --prod
-   ```
-
-#### Setting Up GitHub Actions
-
-**File**: .github/workflows/deploy.yml
-```yaml
-name: Deploy to Production
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-
-      - name: Install dependencies
-        working-directory: ./web/my-app
-        run: npm ci
-
-      - name: Run tests
-        working-directory: ./web/my-app
-        run: npm test
-
-      - name: Build
-        working-directory: ./web/my-app
-        run: npm run build
-
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          working-directory: ./web/my-app
 ```
 
 ---
 
-## 6. QA Agent
+## When in Doubt
 
-### Responsibilities
-- Test all features
-- Report bugs
-- Validate user experience
-- Performance testing
-- Accessibility audits
+1. **Use Context7 to fetch documentation** (`@context7 [framework] [topic]`)
+2. **Search for LATEST documentation** (2025 versions)
+3. Check the user's `package.json` for exact versions
+4. Use Tailwind v4 syntax, not v3
+5. Use Next.js 16 patterns, not 15
+6. Review existing similar code in the project
+7. Ask for clarification before making assumptions
 
-### Workflow
-
-#### Testing Checklist
-
-**Landing Page**:
-- [ ] Hero text displays correctly
-- [ ] Dashboard preview scales on scroll
-- [ ] Navigation links work
-- [ ] Responsive on mobile/tablet/desktop
-- [ ] No console errors
-
-**Graph View**:
-- [ ] Graph renders with correct data
-- [ ] Node colors match courses
-- [ ] Click navigation works
-- [ ] Camera controls respond
-- [ ] No performance lag with 1000+ nodes
-
-**Voice Control**:
-- [ ] Microphone access granted
-- [ ] Speech recognized accurately
-- [ ] Commands execute correctly
-- [ ] Feedback provided (visual + audio)
-
-**API Endpoints**:
-- [ ] `/api/courses` returns valid data
-- [ ] `/api/sync` completes without errors
-- [ ] Error handling works (500, 404)
-
-#### Bug Report Template
-
-```markdown
-## Bug Report
-
-**Title**: [Short description]
-
-**Severity**: Critical | High | Medium | Low
-
-**Steps to Reproduce**:
-1. Navigate to...
-2. Click on...
-3. Observe...
-
-**Expected Behavior**:
-[What should happen]
-
-**Actual Behavior**:
-[What actually happens]
-
-**Environment**:
-- Browser: Chrome 120 / Firefox 121 / Safari 17
-- OS: macOS 14 / Windows 11 / Ubuntu 22
-- Device: Desktop / Mobile
-
-**Screenshots/Video**:
-[Attach if applicable]
-
-**Console Errors**:
-```
-[Paste error logs]
-```
-
-**Suggested Fix** (optional):
-[Your ideas]
-```
+**Never assume a package version — always research the latest stable release first.**  
+**Context7 is your first stop for accurate documentation.**
 
 ---
 
-## Cross-Agent Collaboration
+## Notes for AI Agents
 
-### Communication Protocols
+- **Code style**: [Prefer functional/OOP, etc.]
+- **Response format**: [Concise explanations, verbose, etc.]
+- **Testing**: [Always include tests / Tests optional]
+- **Documentation**: [Update inline comments / Separate docs]
 
-#### When Backend Changes API Contract
-1. Backend Agent: Update API in `/api/` route
-2. Backend Agent: Update documentation in `docs/API.md`
-3. Backend Agent: Notify Frontend Agent
-4. Frontend Agent: Update API calls in components
-5. QA Agent: Test integration
+### UI/UX Requirements
+- **ALWAYS use Framer Motion** for animations (never plain CSS transitions)
+- **Reference Mobbin** before building new UI patterns
+- **Follow React Bits** patterns for component composition
+- **Consider Three.js** for 3D elements or immersive experiences
+- **Prioritize smooth animations** — 60fps minimum, use `will-change` wisely
+- **Mobile-first responsive** — test on mobile breakpoints first
+- **Accessibility** — semantic HTML, ARIA labels, keyboard navigation
 
-#### When Graph Data Format Changes
-1. Backend Agent: Modify Helix query response
-2. Backend Agent: Update `lib/graph-utils.ts` transformation
-3. Graph Agent: Verify graph renders correctly
-4. QA Agent: Test with sample data
+### Research-First Approach
+1. **Use Context7** to fetch official documentation (`@context7 [framework] [topic]`)
+2. **Always search for latest versions** before suggesting packages
+3. **Check release notes** for breaking changes
+4. **Use latest patterns** from official docs
+5. **Verify compatibility** with project's dependencies
 
-#### When Adding New Voice Command
-1. Voice AI Agent: Implement intent parser
-2. Voice AI Agent: Document command in README
-3. Graph Agent: Expose navigation API
-4. Frontend Agent: Update UI with command hint
-5. QA Agent: Test command accuracy
-
----
-
-## Agent Decision Matrix
-
-| Decision | Frontend | Backend | Graph | Voice | DevOps | QA |
-|----------|----------|---------|-------|-------|--------|-----|
-| Add UI component | ✅ | ⚠️ | ⚠️ | ❌ | ❌ | ⚠️ |
-| Modify DB schema | ❌ | ✅ | ⚠️ | ❌ | ⚠️ | ❌ |
-| Change graph rendering | ❌ | ❌ | ✅ | ⚠️ | ❌ | ⚠️ |
-| Add voice command | ❌ | ⚠️ | ⚠️ | ✅ | ❌ | ⚠️ |
-| Deploy to production | ❌ | ❌ | ❌ | ❌ | ✅ | ⚠️ |
-| Report bugs | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ✅ |
-
-**Legend**:
-- ✅ Primary decision maker
-- ⚠️ Must be consulted/informed
-- ❌ No involvement needed
-
----
-
-## Best Practices
-
-### All Agents
-1. **Document Changes**: Update relevant .md files
-2. **Test Before Commit**: Run `npm run lint` and `npm run build`
-3. **Write Clear Commits**: Follow conventional commit format
-4. **Communicate**: Use GitHub issues/discussions for coordination
-5. **Review Code**: Request reviews from affected agents
-
-### Code Review Guidelines
-- Frontend reviews UI/UX changes
-- Backend reviews data/API changes
-- Graph reviews visualization logic
-- Voice reviews NLP/intent changes
-- DevOps reviews deployment configs
-- QA reviews test coverage
-
----
-
-**Last Updated**: November 23, 2025
-**Version**: 1.0
+**Context7 is your primary documentation source** - use it to get accurate, current information directly from official docs.
