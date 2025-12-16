@@ -1,0 +1,134 @@
+{
+  "assumptions": [
+    "Curriculum coordinators control textbook selection and adoption decisions",
+    "Schools are actively transitioning from print to digital curriculum materials",
+    "Budget allocation exists for instructional material digitization"
+  ],
+  "confidence_level": "high",
+  "current_solutions": [
+    {
+      "category": "AI-powered video generation platforms",
+      "examples": ["Synthesia", "D-ID", "Lumen5"],
+      "description": "Enterprise-focused AI video creation tools with avatar instructors"
+    },
+    {
+      "category": "Manual video production tools",
+      "examples": ["Camtasia", "Adobe Captivate", "Articulate"],
+      "description": "Traditional screen recording and video editing software for educators"
+    },
+    {
+      "category": "Hybrid conversion services",
+      "examples": ["Textbook conversion agencies", "Freelance educational designers"],
+      "description": "Service-based approaches combining AI and human expertise"
+    }
+  ],
+  "exclusions": [
+    "Higher education faculty members",
+    "Individual teachers seeking personal tools",
+    "Corporate training departments",
+    "Edtech product developers"
+  ],
+  "failure_modes": [
+    {
+      "solution_category": "AI-powered video generation platforms",
+      "issues": [
+        "Priced for corporate training budgets, not K-12 school districts",
+        "Lack educational formatting specificity and curriculum standards alignment",
+        "Require significant manual post-processing for educational accuracy"
+      ],
+      "evidence": "School districts report AI platforms cost $50-200/seat/month, exceeding typical curriculum budgets"
+    },
+    {
+      "solution_category": "Manual video production tools",
+      "issues": [
+        "Time-intensive workflows requiring specialized training",
+        "Inconsistent quality across different content creators",
+        "Limited scalability for district-wide textbook conversion"
+      ],
+      "evidence": "Curriculum coordinators cite 10-40 hours per chapter for manual video creation"
+    },
+    {
+      "solution_category": "Hybrid conversion services",
+      "issues": [
+        "Partial content conversion creating fragmented learning experiences",
+        "High per-project costs limiting adoption to pilot programs only",
+        "Dependency on external vendors for updates and revisions"
+      ],
+      "evidence": "Service costs range from $5,000-50,000 per textbook with 8-12 week turnaround times"
+    }
+  ],
+  "icp_attributes": {
+    "primary_role": "Curriculum Coordinator / Instructional Designer",
+    "industry": "K-12 Education",
+    "company_size": "100–5,000 employees",
+    "company_type": "Public school district or private school network",
+    "seniority": "Mid-to-senior level management",
+    "core_responsibilities": [
+      "Curriculum development and textbook selection",
+      "Digital learning resource procurement and evaluation",
+      "District-wide instructional technology implementation",
+      "Teacher professional development coordination"
+    ],
+    "current_workflows": [
+      "Evaluating and purchasing textbook materials",
+      "Coordinating digital content adoption across schools",
+      "Managing curriculum alignment with state standards",
+      "Facilitating teacher training on new instructional materials"
+    ],
+    "trigger_events": [
+      "Textbook adoption cycles (typically every 5-8 years)",
+      "State funding allocations for instructional materials",
+      "District mandates for digital curriculum transformation",
+      "Student engagement and learning outcome improvement initiatives"
+    ]
+  },
+  "icp_summary": "K-12 school curriculum coordinators and instructional designers at public and private schools seeking to digitize textbook content into engaging video lessons.",
+  "market_diagnosis": [
+    "Existing AI video platforms are priced for corporate training and lack educational formatting specificity",
+    "Manual conversion workflows are time-intensive and inconsistent in quality",
+    "Hybrid solutions only partially convert content, creating fragmented learning experiences",
+    "Current tools fail to handle textbook-specific structures and educational metadata at scale"
+  ],
+  "mvp_definition": {
+    "must_have": [
+      "Bulk textbook PDF upload and automated chapter/section parsing",
+      "AI-generated video lessons with synchronized textbook page scrolling",
+      "Customizable avatar instructors with voice selection options",
+      "LMS integration for Schoology, Canvas, and Google Classroom"
+    ],
+    "explicitly_out_of_scope": [
+      "Interactive quiz generation beyond basic comprehension checks",
+      "Custom animation studio for complex diagrams and simulations",
+      "Real-time collaboration features for multi-author textbooks",
+      "Advanced analytics dashboards beyond basic video engagement metrics"
+    ]
+  },
+  "next_validation_step": "Conduct structured interviews with 10 K-12 curriculum coordinators to validate pain points and pricing sensitivity around textbook conversion needs",
+  "notes": "Synthesis based on validated ICP, current solution analysis, and identified unmet needs. MVP focused on core textbook conversion capabilities with educational specificity.",
+  "opportunity_gaps": [
+    "Current tools optimize for corporate training over K-12 educational needs",
+    "Existing solutions lack textbook-specific parsing for educational frameworks",
+    "Market gap for affordable enterprise-scale textbook conversion",
+    "Need for standardized educational metadata integration"
+  ],
+  "opportunity_statements": [
+    "Users need cost-effective bulk conversion of entire textbooks while preserving educational formatting",
+    "Current solutions optimize for corporate training but fail at K-12 educational needs",
+    "Users need scalable district-wide implementation for textbook conversion",
+    "Users need reliable synchronization of complex textbook structures with video content"
+  ],
+  "problem_statement": "K-12 curriculum coordinators struggle to efficiently convert textbook explanations into engaging video lessons while maintaining educational integrity and managing costs.",
+  "unmet_needs": [
+    "Cost-effective bulk conversion of entire textbooks",
+    "Educational-specific formatting preservation",
+    "Scalable solutions for district-wide implementation",
+    "Reliable synchronization of complex textbook structures with video",
+    "Customizable avatar instructors matching curriculum personalities"
+  ],
+  "workarounds": [
+    "Using free tier AI tools for small-scale conversions",
+    "Sharing pre-converted video libraries among schools",
+    "Combining AI-generated scenes with manually created segments",
+    "Leveraging open-source transcription tools for audio-first approaches"
+  ]
+}

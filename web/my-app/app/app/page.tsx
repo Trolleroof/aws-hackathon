@@ -8,6 +8,241 @@ import { getInitialGraphData } from '@/data/agentNodes';
 import { GraphControlProvider } from '@/contexts/GraphControlContext';
 import type { AgentContent, AgentNode, IdeaGraphData, AgentType } from '@/types/ideaGraph';
 
+// Helper to safely get array data
+function getArrayData(data: any, ...keys: string[]): any[] {
+  for (const key of keys) {
+    const value = data[key];
+    if (Array.isArray(value) && value.length > 0) {
+      return value;
+    }
+  }
+  return [];
+}
+
+// Helper to safely get string data
+function getStringData(data: any, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = data[key];
+    if (value && typeof value === 'string') {
+      return value;
+    }
+  }
+  return '';
+}
+
+// Map backend response data to agent content structure (flexible/adaptive)
+function mapBackendDataToContent(agentType: AgentType, data: any): AgentContent | null {
+  switch (agentType) {
+    case 'problem': {
+      const problems = [];
+
+      // Try multiple possible sources for problem data
+      const problemSources = [
+        { key: 'market_diagnosis', source: 'Market Analysis' },
+        { key: 'key_findings', source: 'Research Findings', mapper: (f: any) => f.finding || f },
+        { key: 'opportunity_statements', source: 'Opportunity Analysis' },
+        { key: 'problems', source: 'Problem Discovery', mapper: (p: any) => p.statement || p },
+        { key: 'pain_points', source: 'Pain Points' },
+        { key: 'challenges', source: 'Challenges' }
+      ];
+
+      for (const { key, source, mapper } of problemSources) {
+        const items = getArrayData(data, key);
+        if (items.length > 0) {
+          items.forEach((item: any, index: number) => {
+            const statement = mapper ? mapper(item) : item;
+            problems.push({
+              statement: typeof statement === 'string' ? statement : JSON.stringify(statement),
+              frequency: 80 - (index * 5),
+              engagement: 200 - (index * 20),
+              emotionalIntensity: Math.max(1, 8 - index),
+              sources: [source]
+            });
+          });
+          break; // Use first available source
+        }
+      }
+
+      // Fallback to single problem statement
+      if (problems.length === 0) {
+        const statement = getStringData(data, 'problem_statement', 'problem', 'summary');
+        problems.push({
+          statement: statement || 'Problem identified from analysis',
+          frequency: 75,
+          engagement: 150,
+          emotionalIntensity: 7,
+          sources: ['AI Analysis']
+        });
+      }
+
+      return {
+        problems,
+        confidenceScore: data.confidence_level === 'high' ? 85 :
+                        data.confidence_level === 'medium' ? 70 :
+                        data.confidence_score || 50
+      };
+    }
+
+    case 'user': {
+      // Flexibly extract user persona data
+      const title = getStringData(data, 'icp_summary', 'target_user', 'persona_summary', 'user_profile');
+
+      const attributes = data.icp_attributes || data.persona_attributes || data.user_attributes || {};
+
+      // Try multiple sources for each field
+      const role = getStringData(attributes, 'primary_role', 'role', 'job_title', 'title');
+      const seniority = getStringData(attributes, 'seniority', 'level', 'seniority_level');
+      const companySize = getStringData(attributes, 'company_size', 'org_size', 'team_size');
+      const industry = getStringData(attributes, 'industry', 'sector', 'vertical');
+
+      const toolsUsed = getArrayData(attributes, 'current_workflows', 'tools_used', 'tech_stack', 'software');
+      const painPoints = getArrayData(attributes, 'trigger_events', 'pain_points', 'challenges') ||
+                        getArrayData(data, 'assumptions', 'user_needs');
+
+      return {
+        primaryPersona: {
+          title: title || 'Target User Persona',
+          role: role || 'Professional',
+          seniority: seniority || 'Mid-level',
+          companySize: companySize || 'Unknown',
+          industry: industry || 'Unknown',
+          toolsUsed,
+          painPoints
+        }
+      };
+    }
+
+    case 'techstack': {
+      const components = [];
+
+      // Try current_solutions first
+      const solutions = getArrayData(data, 'current_solutions', 'existing_solutions', 'tech_landscape');
+      if (solutions.length > 0) {
+        solutions.forEach((solution: any) => {
+          components.push({
+            category: solution.category || solution.type || 'Solution Category',
+            tools: solution.examples || solution.tools || [solution.name || solution.description || 'Tool'],
+            rationale: solution.description || solution.rationale || 'Current market solution'
+          });
+        });
+      }
+
+      // Try tech stack recommendations
+      if (components.length === 0) {
+        const techStack = getArrayData(data, 'tech_stack', 'recommended_stack', 'technology_recommendations');
+        techStack.forEach((tech: any) => {
+          components.push({
+            category: tech.category || tech.layer || 'Technology',
+            tools: tech.tools || tech.technologies || [tech.name || tech],
+            rationale: tech.rationale || tech.reason || 'Recommended technology'
+          });
+        });
+      }
+
+      // Fallback to MVP features
+      if (components.length === 0) {
+        const mvpFeatures = getArrayData(data.mvp_definition, 'must_have') ||
+                           getArrayData(data, 'mvp_features', 'features');
+        mvpFeatures.slice(0, 5).forEach((feature: string, index: number) => {
+          components.push({
+            category: `Feature ${index + 1}`,
+            tools: [feature],
+            rationale: 'From MVP definition'
+          });
+        });
+      }
+
+      const notes = getStringData(data, 'notes', 'notes_mvp', 'architecture_notes', 'tech_notes');
+
+      return {
+        components: components.length > 0 ? components : [
+          { category: 'To Be Determined', tools: ['Pending analysis'], rationale: 'Technology analysis in progress' }
+        ],
+        architectureNotes: notes || 'Architecture based on requirements'
+      };
+    }
+
+    case 'gaps': {
+      const gaps = [];
+
+      // Try failure_modes
+      const failureModes = getArrayData(data, 'failure_modes', 'solution_gaps', 'competitive_gaps');
+      const workarounds = getArrayData(data, 'workarounds', 'current_workarounds');
+      const opportunities = getArrayData(data, 'opportunity_gaps', 'opportunities', 'market_gaps');
+
+      if (failureModes.length > 0) {
+        failureModes.forEach((failure: any, index: number) => {
+          gaps.push({
+            existingSolution: failure.solution_category || failure.category || failure.existing_solution || 'Current solution',
+            frictionPoint: Array.isArray(failure.issues) ? failure.issues.join('; ') :
+                          (failure.friction_point || failure.issues || 'Friction identified'),
+            workaround: workarounds[index] || failure.workaround || 'Manual workaround',
+            opportunityZone: opportunities[index] || failure.opportunity || 'Market opportunity'
+          });
+        });
+      }
+
+      // Fallback: create gaps from opportunities
+      if (gaps.length === 0 && opportunities.length > 0) {
+        opportunities.forEach((opp: string) => {
+          gaps.push({
+            existingSolution: 'Current solutions',
+            frictionPoint: 'Identified gap',
+            workaround: workarounds[0] || 'Manual processes',
+            opportunityZone: opp
+          });
+        });
+      }
+
+      const summary = getStringData(data, 'gap_summary', 'opportunity_summary') ||
+                     opportunities[0] ||
+                     getArrayData(data, 'opportunity_statements')[0] ||
+                     data.problem_statement ||
+                     'Gap analysis complete';
+
+      return {
+        gaps: gaps.length > 0 ? gaps : [{
+          existingSolution: 'Market solutions',
+          frictionPoint: 'Identified friction',
+          workaround: workarounds[0] || 'Manual processes',
+          opportunityZone: opportunities[0] || 'Market opportunity exists'
+        }],
+        summary
+      };
+    }
+
+    case 'synthesis': {
+      const problemStatement = getStringData(data, 'problem_statement', 'problem', 'core_problem');
+      const targetUser = getStringData(data, 'icp_summary', 'target_user', 'target_market');
+
+      const unmetNeeds = getArrayData(data, 'unmet_needs', 'core_needs', 'user_needs');
+      const coreUnmetNeed = unmetNeeds[0] || getStringData(data, 'core_unmet_need', 'primary_need');
+
+      const opportunityStatements = getArrayData(data, 'opportunity_statements', 'value_propositions');
+      const valueProposition = opportunityStatements[0] || getStringData(data, 'value_proposition', 'unique_value');
+
+      const mvpFeatures = getArrayData(data.mvp_definition, 'must_have') ||
+                         getArrayData(data, 'mvp_features', 'core_features', 'features');
+
+      const nextStep = getStringData(data, 'next_validation_step', 'validation_step', 'next_steps');
+
+      return {
+        brief: {
+          problemStatement: problemStatement || 'Problem statement from analysis',
+          targetUser: targetUser || 'Target user identified',
+          coreUnmetNeed: coreUnmetNeed || 'Core need identified',
+          valueProposition: valueProposition || 'Value proposition defined',
+          mvpFeatures,
+          nextValidationStep: nextStep || 'Define validation approach'
+        }
+      };
+    }
+
+    default:
+      return null;
+  }
+}
+
 export default function DashboardPage() {
   const [graphData, setGraphData] = useState<IdeaGraphData>(getInitialGraphData());
   const [selectedNode, setSelectedNode] = useState<AgentNode | null>(null);
@@ -16,6 +251,94 @@ export default function DashboardPage() {
 
   const handleNodeSelect = useCallback((node: AgentNode | null) => {
     setSelectedNode(node);
+  }, []);
+
+  const handleLoadExample = useCallback(async () => {
+    console.log('🎯 Load Example button clicked!');
+    setIsProcessing(true);
+    console.log('Loading example data...');
+
+    // Update center node
+    setGraphData(prev => {
+      console.log('📊 Current graph data:', prev);
+      return {
+        ...prev,
+        nodes: prev.nodes.map(node =>
+          node.id === 'center'
+            ? { ...node, status: 'complete' as const, name: 'Example Idea' }
+            : { ...node, status: 'processing' as const }
+        )
+      };
+    });
+
+    try {
+      // Load example.json from public folder
+      console.log('📡 Fetching /example.json...');
+      const response = await fetch('example.json');
+      console.log('📡 Response status:', response.status, response.statusText);
+
+      if (!response.ok) {
+        throw new Error(`Failed to load example data: ${response.status}`);
+      }
+
+      const resultData = await response.json();
+      console.log('✅ Example data loaded successfully:', resultData);
+      console.log('📝 Data keys:', Object.keys(resultData));
+
+      // Map example data to agent content
+      const agentTypes: AgentType[] = ['problem', 'user', 'techstack', 'gaps'];
+
+      // Update nodes with example data
+      agentTypes.forEach((agentType, index) => {
+        setTimeout(() => {
+          console.log(`🔄 Updating node: ${agentType}`);
+          const content = mapBackendDataToContent(agentType, resultData);
+          console.log(`📦 Mapped content for ${agentType}:`, content);
+
+          setGraphData(prev => ({
+            ...prev,
+            nodes: prev.nodes.map(node =>
+              node.id === agentType
+                ? {
+                    ...node,
+                    status: 'complete' as const,
+                    content
+                  }
+                : node
+            )
+          }));
+        }, 1500 + index * 500);
+      });
+
+      // Synthesis agent runs last
+      setTimeout(() => {
+        setGraphData(prev => ({
+          ...prev,
+          nodes: prev.nodes.map(node =>
+            node.id === 'synthesis'
+              ? {
+                  ...node,
+                  status: 'complete' as const,
+                  content: mapBackendDataToContent('synthesis', resultData)
+                }
+              : node
+          )
+        }));
+        setIsProcessing(false);
+      }, 1500 + agentTypes.length * 500 + 1000);
+
+    } catch (error) {
+      console.error('Error loading example:', error);
+      setGraphData(prev => ({
+        ...prev,
+        nodes: prev.nodes.map(node =>
+          node.id !== 'center'
+            ? { ...node, status: 'error' as const }
+            : node
+        )
+      }));
+      setIsProcessing(false);
+    }
   }, []);
 
   const handleProcessIdea = useCallback(async (transcript: string) => {
@@ -32,46 +355,78 @@ export default function DashboardPage() {
       )
     }));
 
-    // Simulate parallel processing of all agents
-    const agentTypes: AgentType[] = ['problem', 'user', 'techstack', 'gaps'];
+    try {
+      // Call the backend API through our Next.js API route
+      const response = await fetch('/api/tool', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idea: transcript }),
+      });
 
-    // Process first 4 agents in parallel (simulated)
-    await Promise.all(
-      agentTypes.map(async (agentType, index) => {
-        // Simulate different processing times
-        await new Promise(resolve => setTimeout(resolve, 1500 + index * 500));
+      if (!response.ok) {
+        throw new Error('Failed to process idea');
+      }
 
+      const backendResponse = await response.json();
+      console.log('Backend response:', backendResponse);
+
+      // Parse the result JSON string
+      const resultData = JSON.parse(backendResponse.result);
+      console.log('Parsed result:', resultData);
+
+      // Map backend data to agent content
+      const agentTypes: AgentType[] = ['problem', 'user', 'techstack', 'gaps'];
+
+      // Update nodes with backend data
+      agentTypes.forEach((agentType, index) => {
+        setTimeout(() => {
+          setGraphData(prev => ({
+            ...prev,
+            nodes: prev.nodes.map(node =>
+              node.id === agentType
+                ? {
+                    ...node,
+                    status: 'complete' as const,
+                    content: mapBackendDataToContent(agentType, resultData)
+                  }
+                : node
+            )
+          }));
+        }, 1500 + index * 500);
+      });
+
+      // Synthesis agent runs last
+      setTimeout(() => {
         setGraphData(prev => ({
           ...prev,
           nodes: prev.nodes.map(node =>
-            node.id === agentType
+            node.id === 'synthesis'
               ? {
                   ...node,
                   status: 'complete' as const,
-                  content: getMockContent(agentType)
+                  content: mapBackendDataToContent('synthesis', resultData)
                 }
               : node
           )
         }));
-      })
-    );
+      }, 1500 + agentTypes.length * 500 + 1000);
 
-    // Synthesis agent runs last (after others complete)
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setGraphData(prev => ({
-      ...prev,
-      nodes: prev.nodes.map(node =>
-        node.id === 'synthesis'
-          ? {
-              ...node,
-              status: 'complete' as const,
-              content: getMockContent('synthesis')
-            }
-          : node
-      )
-    }));
-
-    setIsProcessing(false);
+    } catch (error) {
+      console.error('Error processing idea:', error);
+      // Update all nodes to error state
+      setGraphData(prev => ({
+        ...prev,
+        nodes: prev.nodes.map(node =>
+          node.id !== 'center'
+            ? { ...node, status: 'error' as const }
+            : node
+        )
+      }));
+    } finally {
+      setIsProcessing(false);
+    }
   }, []);
 
   return (
@@ -132,14 +487,23 @@ export default function DashboardPage() {
 
           {/* Instructions */}
           {!isProcessing && graphData.nodes.every(n => n.status === 'idle') && (
-            <div className="absolute bottom-7 right-7 max-w-xs pointer-events-none z-10">
-              <div className="space-y-2 text-right text-xs text-slate-500">
-                <div>
-                  Click the mic to brain dump your startup idea, then click Process to run it through 5 AI validation agents.
+            <div className="absolute bottom-7 right-7 max-w-xs z-10">
+              <div className="space-y-3 text-right">
+                <div className="space-y-2 text-xs text-slate-500 pointer-events-none">
+                  <div>
+                    Click the mic to brain dump your startup idea, then click Process to run it through 5 AI validation agents.
+                  </div>
+                  <div className="text-slate-600">
+                    Tip: use the graph toolbar (top-right) to fit, reset, or auto-rotate.
+                  </div>
                 </div>
-                <div className="text-slate-600">
-                  Tip: use the graph toolbar (top-right) to fit, reset, or auto-rotate.
-                </div>
+                <button
+                  onClick={handleLoadExample}
+                  className="pointer-events-auto inline-flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20 hover:border-emerald-500/50 active:scale-[0.98]"
+                >
+                  <span>📊</span>
+                  Load Example Data
+                </button>
               </div>
             </div>
           )}
@@ -156,96 +520,4 @@ export default function DashboardPage() {
       </main>
     </GraphControlProvider>
   );
-}
-
-// Mock content generator (placeholder until real AI integration)
-function getMockContent(agentType: AgentType): AgentContent | null {
-  switch (agentType) {
-    case 'problem':
-      return {
-        problems: [
-          {
-            statement: 'Users struggle to validate startup ideas quickly',
-            frequency: 85,
-            engagement: 234,
-            emotionalIntensity: 8,
-            sources: ['Reddit r/startups', 'Hacker News']
-          },
-          {
-            statement: 'No easy way to get structured feedback on business concepts',
-            frequency: 72,
-            engagement: 189,
-            emotionalIntensity: 7,
-            sources: ['Twitter/X', 'Indie Hackers']
-          },
-          {
-            statement: 'Existing validation tools are too expensive or complex',
-            frequency: 68,
-            engagement: 156,
-            emotionalIntensity: 6,
-            sources: ['Product Hunt', 'Reddit']
-          }
-        ],
-        confidenceScore: 87
-      };
-    case 'user':
-      return {
-        primaryPersona: {
-          title: 'Early-stage founders at pre-seed startups',
-          role: 'Founder / CEO',
-          seniority: 'First-time founder',
-          companySize: '1-5 employees',
-          industry: 'Tech / SaaS',
-          toolsUsed: ['Notion', 'Figma', 'Slack', 'ChatGPT'],
-          painPoints: ['Limited budget', 'Time constraints', 'Lack of feedback']
-        }
-      };
-    case 'techstack':
-      return {
-        components: [
-          { category: 'LLM / Reasoning', tools: ['OpenAI GPT-4', 'Anthropic Claude'], rationale: 'Best for synthesis and analysis' },
-          { category: 'Data Ingestion', tools: ['Reddit API', 'Twitter API', 'Web scraping'], rationale: 'Real-time problem discovery' },
-          { category: 'Search & Retrieval', tools: ['Pinecone', 'OpenAI Embeddings'], rationale: 'Semantic clustering of problems' },
-          { category: 'Orchestration', tools: ['LangGraph', 'Custom router'], rationale: 'Multi-agent coordination' }
-        ],
-        architectureNotes: 'Modular design allows swapping providers easily'
-      };
-    case 'gaps':
-      return {
-        gaps: [
-          {
-            existingSolution: 'Manual market research',
-            frictionPoint: 'Too time-consuming (weeks)',
-            workaround: 'Founders skip validation entirely',
-            opportunityZone: 'Automated, real-time validation'
-          },
-          {
-            existingSolution: 'Expensive consulting firms',
-            frictionPoint: 'Cost prohibitive for early-stage',
-            workaround: 'DIY surveys with low response rates',
-            opportunityZone: 'AI-powered validation at 1/100th cost'
-          }
-        ],
-        summary: 'Major gap exists for fast, affordable, structured idea validation'
-      };
-    case 'synthesis':
-      return {
-        brief: {
-          problemStatement: 'Early-stage founders lack quick, affordable tools to validate startup ideas before investing time and money',
-          targetUser: 'First-time founders at pre-seed startups with limited budgets',
-          coreUnmetNeed: 'Structured, AI-powered idea validation in minutes, not weeks',
-          valueProposition: 'Turn your raw startup idea into a validated concept with actionable insights in under 5 minutes',
-          mvpFeatures: [
-            'Voice-based brain dump capture',
-            'Automated problem discovery from social platforms',
-            'Target user persona generation',
-            'Competitive gap analysis',
-            'One-page startup brief export'
-          ],
-          nextValidationStep: 'Create a landing page and run 10 user interviews with early-stage founders'
-        }
-      };
-    default:
-      return null;
-  }
 }

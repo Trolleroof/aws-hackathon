@@ -200,22 +200,43 @@ def restructure_json(json_data: list) -> str:
             api_key="4acc1f5c-e79b-4dc2-a8c6-3c0636263b54",
             timeout=120.0
         )
-        
+
         logger.info(f"Calling restructure_json API with {len(json_data)} items")
         start_time = time.time()
-        
+
         response = client.chat.completions.create(
             model="AGENT-2bcaeeb8340f44da959daa8aaa6c5bb3",
             messages=[
                 {"role": "user", "content": f"Restructure this JSON data: {json.dumps(json_data, indent=2)}"}
             ],
         )
-        
+
         elapsed = time.time() - start_time
         logger.info(f"restructure_json API call completed in {elapsed:.2f}s")
-        
+
         if response.choices and len(response.choices) > 0:
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+
+            # Strip markdown code blocks if present
+            if content.startswith("```json"):
+                content = content[7:]  # Remove ```json
+            elif content.startswith("```"):
+                content = content[3:]  # Remove ```
+
+            if content.endswith("```"):
+                content = content[:-3]  # Remove trailing ```
+
+            # Strip any leading/trailing whitespace
+            content = content.strip()
+
+            # Validate it's proper JSON before returning
+            try:
+                json.loads(content)  # Test if it's valid JSON
+                return content
+            except json.JSONDecodeError as json_err:
+                logger.error(f"Invalid JSON after cleaning: {json_err}")
+                return json.dumps(json_data, indent=2)
+
         return json.dumps(json_data, indent=2)
     except Exception as e:
         logger.error(f"Error in restructure_json: {e}", exc_info=True)

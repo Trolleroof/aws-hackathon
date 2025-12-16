@@ -22,7 +22,6 @@ interface GraphViewProps {
   focusNodeId?: string | null;
   onNodeSelect?: (node: AgentNode | null) => void;
   selectedNodeId?: string | null;
-  resetNonce?: number;
 }
 
 type OrbitControlsLike = {
@@ -30,26 +29,15 @@ type OrbitControlsLike = {
   autoRotateSpeed?: number;
   enableDamping?: boolean;
   dampingFactor?: number;
-  target?: { 
-    x: number; 
-    y: number; 
-    z: number; 
-    set: (x: number, y: number, z: number) => void 
-  };
-  update?: () => void;
 };
 
-export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId, resetNonce }: GraphViewProps) {
+export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId }: GraphViewProps) {
   const { graphRef } = useGraphControl();
   const containerRef = useRef<HTMLDivElement>(null);
   const hasInitializedForces = useRef(false);
-  const lastResetNonce = useRef<number | undefined>(undefined);
-
   const animatedObjects = useRef<Map<string, THREE.Object3D>>(new Map());
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isAutoRotate, setIsAutoRotate] = useState(false);
-  type D3ChargeForce = { strength?: (value: number) => unknown; distanceMax?: (value: number) => unknown };
-  type D3LinkForce = { distance?: (value: number) => unknown };
 
   const handleNodeClick = useCallback((node: unknown) => {
     const agentNode = node as AgentNode;
@@ -67,8 +55,7 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId, res
 
     // Zoom to node
     const distance = 300; // Good distance for star layout
-    const norm = Math.hypot(agentNode.x || 0, agentNode.y || 0, agentNode.z || 0);
-    const distRatio = 1 + distance / Math.max(1, norm);
+    const distRatio = 1 + distance / Math.hypot(agentNode.x || 0, agentNode.y || 0, agentNode.z || 0);
 
     graphRef.current?.cameraPosition(
       { x: (agentNode.x || 0) * distRatio, y: (agentNode.y || 0) * distRatio, z: (agentNode.z || 0) * distRatio },
@@ -76,17 +63,6 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId, res
       1500
     );
   }, [graphRef, onNodeSelect, selectedNodeId]);
-
-  const resetToHomeView = useCallback((transitionMs = 900) => {
-    if (!graphRef.current) return;
-    
-    // Explicitly set camera to the desired "zoomed out" position
-    graphRef.current.cameraPosition(
-      { x: 0, y: 0, z: 2000 },
-      { x: 0, y: 0, z: 0 },
-      transitionMs
-    );
-  }, [graphRef]);
 
   // Handle external focus changes
   useEffect(() => {
@@ -103,44 +79,45 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId, res
     const applyForces = () => {
       if (!graphRef.current) return false;
 
-      try {
-        // Strong repulsion to spread nodes out
-        const chargeForce = graphRef.current.d3Force('charge') as unknown as D3ChargeForce | null;
-        if (chargeForce) {
-          if (typeof chargeForce.strength === 'function') chargeForce.strength(-50000);
-          if (typeof chargeForce.distanceMax === 'function') chargeForce.distanceMax(20000);
-        }
-
-        // Long links
-        const linkForce = graphRef.current.d3Force('link') as unknown as D3LinkForce | null;
-        if (linkForce) {
-          if (typeof linkForce.distance === 'function') linkForce.distance(50);
-        }
-
-        // Disable conflicting forces
-        graphRef.current.d3Force('collision', null);
-        graphRef.current.d3Force('radial', null);
-
-        // Controls setup
-        const controls = graphRef.current.controls() as OrbitControlsLike | undefined;
-        if (controls) {
-          controls.enableDamping = true;
-          controls.dampingFactor = 0.08;
-          controls.autoRotate = false;
-          controls.autoRotateSpeed = 0.45;
-        }
-
-        // Essential: Reheat to apply new forces
-        graphRef.current.d3ReheatSimulation();
-        console.log('Graph forces applied successfully');
-
-
-
-        return true;
-      } catch (e) {
-        console.warn('Graph init failed, retrying...', e);
-        return false;
+      // Strong repulsion to spread nodes out
+      const chargeForce = graphRef.current.d3Force('charge');
+      if (chargeForce) {
+        chargeForce.strength(-50000);
+        chargeForce.distanceMax(20000); // Allow force to work over long distances
       }
+
+      // Long links
+      const linkForce = graphRef.current.d3Force('link');
+      if (linkForce) {
+        linkForce.distance(50);
+        // Optional: reduce link strength slightly to allow charge to push them further
+        // linkForce.strength(0.5); 
+      }
+
+      // Center force - keep them somewhat grounded but allow spread
+      const centerForce = graphRef.current.d3Force('center');
+      if (centerForce) {
+         // Weak centering is usually default, ensuring we don't drift to infinity
+         // We'll leave it as is or could relax it if needed
+      }
+
+      // Disable conflicting forces
+      graphRef.current.d3Force('collision', null);
+      graphRef.current.d3Force('radial', null);
+
+      // Controls setup
+      const controls = graphRef.current.controls() as OrbitControlsLike | undefined;
+      if (controls) {
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.autoRotate = false;
+        controls.autoRotateSpeed = 0.45;
+      }
+
+      // Essential: Reheat to apply new forces
+      graphRef.current.d3ReheatSimulation();
+      console.log('Graph forces applied successfully');
+      return true;
     };
 
     // Try immediately
@@ -154,14 +131,11 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId, res
       if (applyForces()) {
         hasInitializedForces.current = true;
         clearInterval(intervalId);
-        
-        // Ensure we start at the home view
-        setTimeout(() => resetToHomeView(0), 100);
       }
     }, 250);
 
     return () => clearInterval(intervalId);
-  }, [resetToHomeView, graphRef]);
+  }, [graphRef]);
 
   type GraphLinkObject = LinkObject<AgentNode, AgentLink>;
 
@@ -191,22 +165,10 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId, res
     graphRef.current?.zoomToFit?.(700, 90);
   };
 
-  const handleResetView = useCallback(() => {
+  const handleResetView = () => {
     onNodeSelect?.(null);
-    resetToHomeView(900);
-  }, [onNodeSelect, resetToHomeView]);
-
-  useEffect(() => {
-    if (resetNonce == null) return;
-    if (lastResetNonce.current === undefined) {
-      lastResetNonce.current = resetNonce;
-      return;
-    }
-    if (resetNonce !== lastResetNonce.current) {
-      lastResetNonce.current = resetNonce;
-      handleResetView();
-    }
-  }, [resetNonce, handleResetView]);
+    graphRef.current?.cameraPosition?.({ x: 0, y: 0, z: 400 }, { x: 0, y: 0, z: 0 }, 900);
+  };
 
   const toggleAutoRotate = () => {
     const controls = graphRef.current?.controls?.() as OrbitControlsLike | undefined;
@@ -230,6 +192,29 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId, res
     });
     resizeObserver.observe(containerRef.current);
     return () => resizeObserver.disconnect();
+  }, []);
+
+  // Animation loop for node decorations
+  useEffect(() => {
+    let animationId: number;
+
+    const animate = () => {
+      animatedObjects.current.forEach((obj) => {
+        if (obj.userData.type === 'spin') {
+          obj.rotation.z += obj.userData.speed || 0.01;
+        } else if (obj.userData.type === 'pulse') {
+          const scale = 1 + Math.sin(Date.now() * obj.userData.speed) * 0.15;
+          obj.scale.set(scale, scale, scale);
+        } else if (obj.userData.type === 'orbit') {
+          obj.rotation.z += obj.userData.speed || 0.005;
+        }
+      });
+
+      animationId = requestAnimationFrame(animate);
+    };
+
+    animate();
+    return () => cancelAnimationFrame(animationId);
   }, []);
 
   // Get node color based on status
@@ -279,6 +264,16 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId, res
             // Container group
             const group = new THREE.Group();
 
+            // 0. Core Sphere (always visible)
+            const sphereGeo = new THREE.SphereGeometry(size, 32, 32);
+            const sphereMat = new THREE.MeshBasicMaterial({
+              color: color,
+              transparent: true,
+              opacity: 1.0
+            });
+            const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+            group.add(sphere);
+
             // 1. Text Sprite
             const sprite = new SpriteText(displayName);
             sprite.color = color;
@@ -299,11 +294,12 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId, res
             if (isSelected || isProcessing) {
                // Outer Ring (Spinning)
                const ringGeo = new THREE.TorusGeometry(size * 0.6, 1.5, 8, 32);
-               const ringMat = new THREE.MeshBasicMaterial({ 
-                 color: isSelected ? 0x10B981 : 0x3B82F6, 
-                 transparent: true, 
-                 opacity: 0.6, 
-                 wireframe: true 
+               const ringMat = new THREE.MeshBasicMaterial({
+                 color: isSelected ? 0x10B981 : 0x3B82F6,
+                 transparent: true,
+                 opacity: 0.4,
+                 wireframe: false,
+                 side: THREE.DoubleSide
                });
                const ring = new THREE.Mesh(ringGeo, ringMat);
                ring.userData = { type: 'spin', speed: isProcessing ? 0.05 : 0.01, offset: Math.random() * 100 };
@@ -375,7 +371,6 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId, res
           d3VelocityDecay={0.1}
           warmupTicks={100}
           cooldownTicks={200}
-
         />
       )}
 

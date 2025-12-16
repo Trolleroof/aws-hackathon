@@ -2,12 +2,12 @@
   "name": "my-app",
   "version": "0.1.0",
   "private": true,
-    "scripts": {
-      "dev": "next dev",
-      "build": "next build --webpack",
-      "start": "next start",
-      "lint": "eslint"
-    },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint"
+  },
   "dependencies": {
     "@types/three": "^0.181.0",
     "@vapi-ai/web": "^2.5.1",
