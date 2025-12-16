@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { GraphView } from '@/components/GraphView';
 import { VoiceSidebar } from '@/components/VoiceSidebar';
+import { NodePopup } from '@/components/NodePopup';
 import { getInitialGraphData } from '@/data/agentNodes';
 import { GraphControlProvider } from '@/contexts/GraphControlContext';
 import type { AgentContent, AgentNode, IdeaGraphData, AgentType } from '@/types/ideaGraph';
@@ -11,6 +12,7 @@ export default function DashboardPage() {
   const [graphData, setGraphData] = useState<IdeaGraphData>(getInitialGraphData());
   const [selectedNode, setSelectedNode] = useState<AgentNode | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [resetNonce, setResetNonce] = useState(0);
 
   const handleNodeSelect = useCallback((node: AgentNode | null) => {
     setSelectedNode(node);
@@ -81,6 +83,15 @@ export default function DashboardPage() {
             data={graphData}
             onNodeSelect={handleNodeSelect}
             selectedNodeId={selectedNode?.id}
+            resetNonce={resetNonce}
+          />
+
+          <NodePopup
+            node={selectedNode}
+            onClose={() => {
+              setSelectedNode(null);
+              setResetNonce(n => n + 1);
+            }}
           />
 
           {/* Header */}
