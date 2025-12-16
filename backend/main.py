@@ -77,6 +77,9 @@ async def generate_tech_node(Body: dict):
     tech_node_result = tech_node(content)
     json.append(tech_node_result)
 
+    # Call final function that restructures the JSON
+    # return restructure_json(json)
+
     return {}
 
 
