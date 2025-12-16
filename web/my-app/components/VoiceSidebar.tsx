@@ -6,31 +6,11 @@ import { AGENT_DESCRIPTIONS } from '@/data/agentNodes';
 
 type ChatLine = { role: 'assistant' | 'user'; text: string; time: string };
 
-type SpeechRecognitionResultLike = {
-  isFinal: boolean;
-  0: { transcript: string };
-};
-
-type SpeechRecognitionEventLike = {
-  resultIndex: number;
-  results: ArrayLike<SpeechRecognitionResultLike>;
-  error?: string;
-};
-
-type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: SpeechRecognitionEventLike) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-
-type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
-
 const VISUALIZER_BARS = 14;
 const VISUALIZER_DELAYS = Array.from({ length: VISUALIZER_BARS }, (_, i) => -(i % 5) * 0.12);
+
+// Backend API URL - adjust if needed
+const API_BASE_URL = 'http://localhost:8000';
 
 interface VoiceSidebarProps {
   selectedNode: AgentNode | null;
@@ -40,6 +20,7 @@ interface VoiceSidebarProps {
 
 export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: VoiceSidebarProps) {
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcript, setTranscript] = useState<ChatLine[]>([
     {
       role: 'assistant',
@@ -50,112 +31,162 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [draftIdea, setDraftIdea] = useState('');
 
-  // Web Speech API ref (placeholder - will be replaced with Nova)
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const isRecordingRef = useRef(false);
+  // MediaRecorder refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const mimeTypeRef = useRef<string>('audio/webm');
 
-  useEffect(() => {
-    isRecordingRef.current = isRecording;
-  }, [isRecording]);
+  const startRecording = async () => {
+    try {
+      // Request microphone access
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
 
-  // Initialize Web Speech API (placeholder for Nova)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const win = window as unknown as {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
-
-    const SpeechRecognitionCtor = win.SpeechRecognition || win.webkitSpeechRecognition;
-    if (!SpeechRecognitionCtor) {
-      recognitionRef.current = null;
-      return;
-    }
-
-    const recognition = new SpeechRecognitionCtor();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-
-    recognition.onresult = (event) => {
-      let finalTranscript = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const spokenText = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += spokenText + ' ';
+      // Determine best supported mimeType
+      const mimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/mp4',
+        'audio/wav'
+      ];
+      let selectedMimeType = 'audio/webm';
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          selectedMimeType = mimeType;
+          break;
         }
       }
+      mimeTypeRef.current = selectedMimeType;
 
-      if (finalTranscript) {
-        setCurrentTranscript(prev => prev + finalTranscript);
-      }
-    };
+      // Create MediaRecorder
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: selectedMimeType
+      });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
 
-    recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      setIsRecording(false);
-    };
-
-    recognition.onend = () => {
-      if (isRecordingRef.current) {
-        try {
-          recognition.start();
-        } catch {
-          // no-op
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
         }
-      }
-    };
+      };
 
-    recognitionRef.current = recognition;
+      mediaRecorder.onstop = async () => {
+        // Stop all tracks
+        streamRef.current?.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
 
-    return () => {
-      try {
-        recognition.onresult = null;
-        recognition.onerror = null;
-        recognition.onend = null;
-        recognition.stop();
-      } catch {
-        // no-op
-      }
-    };
-  }, []);
+        // Create blob from recorded chunks with the selected mimeType
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeTypeRef.current });
+        
+        // Transcribe the audio
+        await transcribeAudio(audioBlob, mimeTypeRef.current);
+        
+        // Reset chunks
+        audioChunksRef.current = [];
+      };
 
-  const startRecording = () => {
-    if (!recognitionRef.current) {
+      // Start recording
+      mediaRecorder.start();
+      setIsRecording(true);
+      setCurrentTranscript('');
+      
       const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       setTranscript(prev => [
         ...prev,
         {
           role: 'assistant',
-          text: "Voice input isn't available in this browser. Type your idea below instead.",
+          text: 'Recording started...',
           time
         }
       ]);
-      return;
-    }
-    setCurrentTranscript('');
-    setIsRecording(true);
-    try {
-      recognitionRef.current.start();
-    } catch {
-      // no-op
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      setTranscript(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: 'Failed to access microphone. Please check permissions and try again.',
+          time
+        }
+      ]);
     }
   };
 
   const stopRecording = () => {
-    setIsRecording(false);
-    try {
-      recognitionRef.current?.stop();
-    } catch {
-      // no-op
-    }
-
-    if (currentTranscript.trim()) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      
       const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      setTranscript(prev => [...prev, { role: 'user', text: currentTranscript.trim(), time }]);
+      setTranscript(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: 'Processing audio...',
+          time
+        }
+      ]);
+      setIsTranscribing(true);
     }
-    setCurrentTranscript('');
+  };
+
+  const transcribeAudio = async (audioBlob: Blob, mimeType: string = 'audio/webm') => {
+    try {
+      setIsTranscribing(true);
+      
+      // Determine file extension from mimeType
+      const extension = mimeType.includes('webm') ? 'webm' :
+                        mimeType.includes('ogg') ? 'ogg' :
+                        mimeType.includes('mp4') ? 'm4a' :
+                        mimeType.includes('wav') ? 'wav' : 'webm';
+      
+      // Create FormData to send audio file
+      const formData = new FormData();
+      formData.append('audio', audioBlob, `recording.${extension}`);
+
+      // Send to backend transcription endpoint
+      const response = await fetch(`${API_BASE_URL}/api/transcribe`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Transcription failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.status === 'success' && data.transcript) {
+        const transcriptText = data.transcript.trim();
+        if (transcriptText) {
+          const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          setTranscript(prev => [
+            ...prev,
+            { role: 'user', text: transcriptText, time }
+          ]);
+          setCurrentTranscript(transcriptText);
+        }
+      } else {
+        throw new Error('No transcript received');
+      }
+    } catch (error) {
+      console.error('Error transcribing audio:', error);
+      const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      setTranscript(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: `Transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          time
+        }
+      ]);
+    } finally {
+      setIsTranscribing(false);
+    }
   };
 
   const submitTypedIdea = () => {
@@ -197,7 +228,7 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
 
   // Get selected node info
   const nodeInfo = selectedNode ? AGENT_DESCRIPTIONS[selectedNode.type] : null;
-  const visualizerActive = isRecording || isProcessing;
+  const visualizerActive = isRecording || isProcessing || isTranscribing;
 
   return (
     <div className="w-[380px] h-full flex flex-col border-l border-white/10 bg-[#05070d]/90 relative overflow-hidden">
@@ -210,16 +241,16 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
           <div className="flex flex-col">
             <h2 className="text-xs font-semibold tracking-[0.18em] text-white uppercase">Brain Dump</h2>
             <span className="text-[10px] text-slate-500 mt-0.5">
-              {isRecording ? 'Recording...' : isProcessing ? 'Processing...' : 'Ready'}
+              {isRecording ? 'Recording...' : isTranscribing ? 'Transcribing...' : isProcessing ? 'Processing...' : 'Ready'}
             </span>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={isRecording ? stopRecording : startRecording}
-            disabled={isProcessing}
+            disabled={isProcessing || isTranscribing}
             className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
-              isProcessing
+              isProcessing || isTranscribing
                 ? 'border-slate-700 bg-slate-800 text-slate-500 cursor-not-allowed'
                 : isRecording
                   ? 'border-red-500/50 bg-red-500/20 hover:bg-red-500/30 text-red-400 scale-110'
@@ -246,7 +277,7 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
           <div
             key={idx}
             className={`w-1 rounded-full ${
-              isRecording ? 'bg-red-400/80' : isProcessing ? 'bg-amber-400/80' : 'bg-slate-700/50'
+              isRecording ? 'bg-red-400/80' : isTranscribing || isProcessing ? 'bg-amber-400/80' : 'bg-slate-700/50'
             } ${visualizerActive ? 'animate-music-bar' : ''}`}
             style={{
               height: '20%',
@@ -317,8 +348,8 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
           </div>
         ))}
 
-        {/* Live transcript while recording */}
-        {isRecording && currentTranscript && (
+        {/* Live transcript while recording or transcribing */}
+        {(isRecording || isTranscribing) && currentTranscript && (
           <div className="flex gap-4 flex-row-reverse opacity-70">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border bg-white/5 border-white/10">
               <span className="text-xs text-slate-200 font-medium">ME</span>
@@ -326,7 +357,7 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
             <div className="space-y-1 flex-1 text-right">
               <div className="flex items-center justify-between flex-row-reverse">
                 <div className="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">You</div>
-                <span className="text-[10px] text-slate-700">Live...</span>
+                <span className="text-[10px] text-slate-700">{isRecording ? 'Recording...' : 'Transcribing...'}</span>
               </div>
               <div className="text-sm leading-relaxed text-slate-200">{currentTranscript}</div>
             </div>
@@ -339,9 +370,11 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
         <div className="text-center text-xs text-slate-500 mb-4">
           {isRecording
             ? 'Recording your brain dump...'
-            : isProcessing
-              ? 'Analyzing your idea...'
-              : 'Click mic to start (or type below), then Process'}
+            : isTranscribing
+              ? 'Transcribing audio...'
+              : isProcessing
+                ? 'Analyzing your idea...'
+                : 'Click mic to start (or type below), then Process'}
         </div>
 
         {/* Typed fallback / quick edit */}
@@ -356,15 +389,15 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
               }
             }}
             placeholder="Type your startup idea…"
-            disabled={isRecording || isProcessing}
+            disabled={isRecording || isProcessing || isTranscribing}
             rows={2}
             className="flex-1 resize-none rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-50"
           />
           <button
             onClick={submitTypedIdea}
-            disabled={isRecording || isProcessing || !draftIdea.trim()}
+            disabled={isRecording || isProcessing || isTranscribing || !draftIdea.trim()}
             className={`w-11 rounded-lg border transition-all ${
-              isRecording || isProcessing || !draftIdea.trim()
+              isRecording || isProcessing || isTranscribing || !draftIdea.trim()
                 ? 'border-white/10 bg-white/5 text-slate-600 cursor-not-allowed'
                 : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
             }`}
@@ -380,9 +413,9 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
         {/* Process Button */}
         <button
           onClick={handleProcessIdea}
-          disabled={isRecording || isProcessing || (!draftIdea.trim() && !currentTranscript.trim() && !transcript.some(t => t.role === 'user'))}
+          disabled={isRecording || isProcessing || isTranscribing || (!draftIdea.trim() && !currentTranscript.trim() && !transcript.some(t => t.role === 'user'))}
           className={`w-full py-3 rounded-lg font-semibold text-sm transition-all ${
-            isRecording || isProcessing || (!draftIdea.trim() && !currentTranscript.trim() && !transcript.some(t => t.role === 'user'))
+            isRecording || isProcessing || isTranscribing || (!draftIdea.trim() && !currentTranscript.trim() && !transcript.some(t => t.role === 'user'))
               ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
               : 'bg-emerald-500 hover:bg-emerald-400 text-black'
           }`}
@@ -400,10 +433,10 @@ export function VoiceSidebar({ selectedNode, onProcessIdea, isProcessing }: Voic
           )}
         </button>
 
-        {/* Nova placeholder notice */}
-        <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-          <p className="text-xs text-amber-400 text-center">
-            Nova integration coming soon. Using Web Speech API as placeholder.
+        {/* AssemblyAI notice */}
+        <div className="mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+          <p className="text-xs text-emerald-400 text-center">
+            Using AssemblyAI for speech-to-text transcription.
           </p>
         </div>
       </div>
