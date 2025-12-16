@@ -244,7 +244,7 @@ function mapBackendDataToContent(agentType: AgentType, data: any): AgentContent 
 }
 
 export default function DashboardPage() {
-  const [graphData, setGraphData] = useState<IdeaGraphData>(getInitialGraphData());
+  const [graphData, setGraphData] = useState<IdeaGraphData>({ nodes: [], links: [] });
   const [selectedNode, setSelectedNode] = useState<AgentNode | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [resetNonce, setResetNonce] = useState(0);
@@ -258,17 +258,15 @@ export default function DashboardPage() {
     setIsProcessing(true);
     console.log('Loading example data...');
 
-    // Update center node
-    setGraphData(prev => {
-      console.log('📊 Current graph data:', prev);
-      return {
-        ...prev,
-        nodes: prev.nodes.map(node =>
-          node.id === 'center'
-            ? { ...node, status: 'complete' as const, name: 'Example Idea' }
-            : { ...node, status: 'processing' as const }
-        )
-      };
+    // Initialize graph with nodes
+    const initialData = getInitialGraphData();
+    setGraphData({
+      ...initialData,
+      nodes: initialData.nodes.map(node =>
+        node.id === 'center'
+          ? { ...node, status: 'complete' as const, name: 'Example Idea' }
+          : { ...node, status: 'processing' as const }
+      )
     });
 
     try {
@@ -345,15 +343,16 @@ export default function DashboardPage() {
     setIsProcessing(true);
     console.log('Processing idea:', transcript);
 
-    // Update center node with the idea
-    setGraphData(prev => ({
-      ...prev,
-      nodes: prev.nodes.map(node =>
+    // Initialize graph with nodes
+    const initialData = getInitialGraphData();
+    setGraphData({
+      ...initialData,
+      nodes: initialData.nodes.map(node =>
         node.id === 'center'
           ? { ...node, status: 'complete' as const, name: 'Your Idea' }
           : { ...node, status: 'processing' as const }
       )
-    }));
+    });
 
     try {
       // Call the backend API through our Next.js API route
@@ -479,14 +478,16 @@ export default function DashboardPage() {
           </div>
 
           {/* Bottom Status */}
-          <div className="absolute bottom-7 left-7 pointer-events-none z-10">
-            <div className="text-[11px] font-mono text-slate-500 uppercase tracking-[0.28em]">
-              {graphData.nodes.filter(n => n.status === 'complete').length} / {graphData.nodes.length} agents complete
+          {graphData.nodes.length > 0 && (
+            <div className="absolute bottom-7 left-7 pointer-events-none z-10">
+              <div className="text-[11px] font-mono text-slate-500 uppercase tracking-[0.28em]">
+                {graphData.nodes.filter(n => n.status === 'complete').length} / {graphData.nodes.length} agents complete
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Instructions */}
-          {!isProcessing && graphData.nodes.every(n => n.status === 'idle') && (
+          {!isProcessing && (graphData.nodes.length === 0 || graphData.nodes.every(n => n.status === 'idle')) && (
             <div className="absolute bottom-7 right-7 max-w-xs z-10">
               <div className="space-y-3 text-right">
                 <div className="space-y-2 text-xs text-slate-500 pointer-events-none">
