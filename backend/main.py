@@ -4,8 +4,13 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from openai import OpenAI
+import logging
 
-from functions import tech_node, framing_node, restructure_json
+from functions import tech_node, framing_node, target_user, problem_node, solution_node_2, restructure_json
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Mock API", version="1.0.0")
 
@@ -72,19 +77,80 @@ def create_item(item: Item):
 @app.post("/api/tool")
 async def generate_tech_node(Body: dict):
     json = []
-
     content = Body.get("idea", "No idea provided")
     
-    # Call framing_node first with empty context
-    framing_node_result = framing_node(content, json)
-    json.append(framing_node_result)
-    
-    # Call tech_node with accumulated context from framing_node
-    tech_node_result = tech_node(content, json)
-    json.append(tech_node_result)
+    try:
+        logger.info(f"Starting node chain with idea: {content[:50]}...")
+        
+        # Call problem_node first with empty context
+        logger.info("Calling problem_node...")
+        try:
+            problem_node_result = problem_node(content, json)
+            json.append(problem_node_result)
+            content = f"{content}\n\n{problem_node_result}"
+            logger.info(f"✅ problem_node completed: {problem_node_result[:50]}...")
+        except Exception as e:
+            logger.error(f"❌ problem_node failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"problem_node failed: {str(e)}")
+        
+        # Call target_user with accumulated context and updated content
+        logger.info("Calling target_user...")
+        try:
+            target_user_result = target_user(content, json)
+            json.append(target_user_result)
+            content = f"{content}\n\n{target_user_result}"
+            logger.info(f"✅ target_user completed: {target_user_result[:50]}...")
+        except Exception as e:
+            logger.error(f"❌ target_user failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"target_user failed: {str(e)}")
+        
+        # Call tech_node with accumulated context and updated content
+        logger.info("Calling tech_node...")
+        try:
+            tech_node_result = tech_node(content, json)
+            json.append(tech_node_result)
+            content = f"{content}\n\n{tech_node_result}"
+            logger.info(f"✅ tech_node completed: {tech_node_result[:50]}...")
+        except Exception as e:
+            logger.error(f"❌ tech_node failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"tech_node failed: {str(e)}")
+        
+        # Call solution_node_2 with accumulated context and updated content
+        logger.info("Calling solution_node_2...")
+        try:
+            solution_node_result = solution_node_2(content, json)
+            json.append(solution_node_result)
+            content = f"{content}\n\n{solution_node_result}"
+            logger.info(f"✅ solution_node_2 completed: {solution_node_result[:50]}...")
+        except Exception as e:
+            logger.error(f"❌ solution_node_2 failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"solution_node_2 failed: {str(e)}")
+        
+        # Call framing_node last with all accumulated context
+        logger.info("Calling framing_node...")
+        try:
+            framing_node_result = framing_node(content, json)
+            json.append(framing_node_result)
+            logger.info(f"✅ framing_node completed: {framing_node_result[:50]}...")
+        except Exception as e:
+            logger.error(f"❌ framing_node failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"framing_node failed: {str(e)}")
 
-    # Call final function that restructures the JSON
-    return restructure_json(json)
+        # Call final function that restructures the JSON
+        logger.info("Calling restructure_json...")
+        try:
+            result = restructure_json(json)
+            logger.info(f"✅ restructure_json completed. Result type: {type(result)}")
+            return {"result": result, "status": "success", "nodes_completed": len(json)}
+        except Exception as e:
+            logger.error(f"❌ restructure_json failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"restructure_json failed: {str(e)}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Unexpected error in endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
 
