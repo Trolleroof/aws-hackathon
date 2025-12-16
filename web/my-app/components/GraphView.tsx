@@ -54,7 +54,7 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId }: G
     }
 
     // Zoom to node
-    const distance = 300; // Good distance for star layout
+    const distance = 150; // Good distance for star layout
     const distRatio = 1 + distance / Math.hypot(agentNode.x || 0, agentNode.y || 0, agentNode.z || 0);
 
     graphRef.current?.cameraPosition(
@@ -79,19 +79,18 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId }: G
     const applyForces = () => {
       if (!graphRef.current) return false;
 
-      // Strong repulsion to spread nodes out
+      // Weak repulsion - just enough to prevent overlap
       const chargeForce = graphRef.current.d3Force('charge');
       if (chargeForce) {
-        chargeForce.strength(-50000);
-        chargeForce.distanceMax(20000); // Allow force to work over long distances
+        chargeForce.strength(-200);
+        chargeForce.distanceMax(200);
       }
 
-      // Long links
+      // Very strong links to create tight star pattern
       const linkForce = graphRef.current.d3Force('link');
       if (linkForce) {
-        linkForce.distance(50);
-        // Optional: reduce link strength slightly to allow charge to push them further
-        // linkForce.strength(0.5); 
+        linkForce.distance(80);
+        linkForce.strength(2); // Extra strong to pull nodes to center
       }
 
       // Center force - keep them somewhat grounded but allow spread
@@ -118,7 +117,7 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId }: G
       graphRef.current.d3ReheatSimulation();
 
       // Set initial camera position
-      graphRef.current.cameraPosition({ x: 0, y: 0, z: 250 }, { x: 0, y: 0, z: 0 }, 0);
+      graphRef.current.cameraPosition({ x: 0, y: 0, z: 150 }, { x: 0, y: 0, z: 0 }, 0);
 
       console.log('Graph forces applied successfully');
       return true;
@@ -171,7 +170,7 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId }: G
 
   const handleResetView = () => {
     onNodeSelect?.(null);
-    graphRef.current?.cameraPosition?.({ x: 0, y: 0, z: 250 }, { x: 0, y: 0, z: 0 }, 900);
+    graphRef.current?.cameraPosition?.({ x: 0, y: 0, z: 150 }, { x: 0, y: 0, z: 0 }, 900);
   };
 
   const toggleAutoRotate = () => {
@@ -385,10 +384,10 @@ export function GraphView({ data, focusNodeId, onNodeSelect, selectedNodeId }: G
           onNodeClick={handleNodeClick}
           onBackgroundClick={() => onNodeSelect?.(null)}
 
-          // Physics - slow decay to let nodes spread
-          d3VelocityDecay={0.1}
-          warmupTicks={100}
-          cooldownTicks={200}
+          // Physics - faster settling for tight star pattern
+          d3VelocityDecay={0.3}
+          warmupTicks={200}
+          cooldownTicks={300}
         />
       )}
 
