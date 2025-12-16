@@ -5,7 +5,7 @@ from typing import List, Optional
 from datetime import datetime
 from openai import OpenAI
 
-from tech_function import tech_node, restructure_json
+from functions import tech_node, framing_node, restructure_json
 
 app = FastAPI(title="Mock API", version="1.0.0")
 
@@ -74,7 +74,13 @@ async def generate_tech_node(Body: dict):
     json = []
 
     content = Body.get("idea", "No idea provided")
-    tech_node_result = tech_node(content)
+    
+    # Call framing_node first with empty context
+    framing_node_result = framing_node(content, json)
+    json.append(framing_node_result)
+    
+    # Call tech_node with accumulated context from framing_node
+    tech_node_result = tech_node(content, json)
     json.append(tech_node_result)
 
     # Call final function that restructures the JSON
